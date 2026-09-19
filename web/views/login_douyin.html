@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-lg mx-auto" data-slide>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
+        <div class="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-lg">
+            抖
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800 mb-1">抖音扫码登录</h2>
+        <p class="text-sm text-gray-400 mb-6">登录后即可搜索抖音视频</p>
+
+        <div class="mb-6">
+            <div class="p-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 mb-5">
+                <div class="text-6xl mb-3">📱</div>
+                <p class="text-sm text-gray-600 mb-2">请用手机浏览器打开以下链接</p>
+                <a id="login-link" href="#" target="_blank"
+                   class="inline-block px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-medium hover:from-red-600 hover:to-red-700 transition-all">
+                    打开抖音登录页 →
+                </a>
+                <p class="text-xs text-gray-400 mt-3">在登录页选择「扫码登录」，然后打开手机抖音扫一扫</p>
+            </div>
+
+            <div id="login-status" class="text-sm text-gray-500">
+                <span class="inline-flex items-center gap-2">
+                    <span class="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                    等待登录...
+                </span>
+            </div>
+        </div>
+
+        <div id="success-section" class="hidden mb-6">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto">
+                ✅
+            </div>
+            <p class="text-lg font-semibold text-green-600 mt-3">登录成功！</p>
+            <p class="text-sm text-gray-400 mt-1">Cookie 已保存，正在返回...</p>
+        </div>
+
+        <div class="flex items-center justify-center gap-3">
+            <a href="/search" class="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium text-sm transition-all">
+                ← 返回搜索
+            </a>
+        </div>
+    </div>
+
+    <!-- Alternative: manual cookie -->
+    <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 class="font-semibold text-gray-700 mb-3 text-sm">备选方案：手动粘贴 Cookie</h3>
+        <form id="cookie-form" class="space-y-3">
+            <textarea id="cookie-input" placeholder="在浏览器控制台输入: document.cookie"
+                      class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50 text-sm font-mono"
+                      rows="3"></textarea>
+            <button type="submit" class="w-full px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 font-medium text-sm transition-all shadow-sm">
+                保存 Cookie
+            </button>
+        </form>
+        <div id="cookie-status" class="mt-2 text-sm text-center hidden"></div>
+    </div>
+</div>
+
+<script>
+let pollTimer = null;
+let maxPolls = 90;
+let pollCount = 0;
+
+// Open login page and start polling
+function startLoginFlow() {
+    const loginUrl = 'https://www.douyin.com/login/';
+    document.getElementById('login-link').href = loginUrl;
+    
+    // First, visit the login page to establish session
+    fetch('https://www.douyin.com/', { mode: 'no-cors' }).then(() => {
+        setTimeout(pollLogin, 1000);
+    });
+}
+
+// Poll for login status
+function pollLogin() {
+    pollCount++;
+    
+    if (pollCount > maxPolls) {
+        document.getElementById('login-status').innerHTML = `
+            <span class="text-red-500">登录超时，请刷新页面重试</span>
+        `;
+        return;
+    }
+    
+    fetch('https://www.douyin.com/', { mode: 'no-cors' }).then(() => {
+        // Check if session cookie exists by trying the API
+        fetch('/api/douyin/check-login')
+            .then(r => r.json())
+            .then(data => {
+                if (data.logged_in) {
+                    clearInterval(pollTimer);
+                    handleSuccess();
+                } else {
+                    document.getElementById('login-status').innerHTML = `
+                        <span class="inline-flex items-center gap-2">
+                            <span class="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></span>
+                            等待登录... (${pollCount}/${maxPolls})
+                        </span>
+                    `;
+                    pollTimer = setTimeout(pollLogin, 2000);
+                }
+            })
+            .catch(() => {
+                pollTimer = setTimeout(pollLogin, 2000);
+            });
+    }).catch(() => {
+        pollTimer = setTimeout(pollLogin, 2000);
+    });
+}
+
+// Handle success
+function handleSuccess() {
+    document.getElementById('login-status').classList.add('hidden');
+    document.getElementById('success-section').classList.remove('hidden');
+    
+    setTimeout(() => {
+        window.location.href = '/search';
+    }, 2000);
+}
+
+// Manual cookie save
+document.getElementById('cookie-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cookieStr = document.getElementById('cookie-input').value.trim();
+    const statusEl = document.getElementById('cookie-status');
+    
+    if (!cookieStr) {
+        statusEl.textContent = '请输入 Cookie';
+        statusEl.className = 'mt-2 text-sm text-center text-red-500';
+        statusEl.classList.remove('hidden');
+        return;
+    }
+    
+    try {
+        const resp = await fetch('/api/douyin/cookies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cookies: cookieStr })
+        });
+        const data = await resp.json();
+        
+        statusEl.textContent = data.message;
+        statusEl.className = `mt-2 text-sm text-center ${data.status === 'success' ? 'text-green-500' : 'text-red-500'}`;
+        statusEl.classList.remove('hidden');
+        
+        if (data.status === 'success') {
+            setTimeout(() => {
+                window.location.href = '/search';
+            }, 1500);
+        }
+    } catch (err) {
+        statusEl.textContent = '保存失败: ' + err.message;
+        statusEl.className = 'mt-2 text-sm text-center text-red-500';
+        statusEl.classList.remove('hidden');
+    }
+});
+
+// Initial load
+startLoginFlow();
+</script>
+{% endblock %}

@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+#toast-container {
+    position: fixed; top: 1rem; right: 1rem; z-index: 9999;
+    display: flex; flex-direction: column; gap: 0.5rem; max-width: 24rem;
+}
+.toast {
+    padding: 0.75rem 1rem; border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.3s ease-out;
+    font-size: 0.875rem; display: flex; align-items: flex-start; gap: 0.5rem;
+}
+.toast-error { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+.toast-success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+.toast-warning { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+.toast-icon { flex-shrink: 0; font-size: 1.125rem; }
+.toast-close { margin-left: auto; cursor: pointer; background: none; border: none; font-size: 1rem; color: inherit; opacity: 0.6; }
+.toast-close:hover { opacity: 1; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* Level badges */
+.level-badge {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    padding: 0.125rem 0.5rem; border-radius: 9999px;
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em;
+    line-height: 1.4;
+}
+.level-debug { background: #dbeafe; color: #1d4ed8; }
+.level-info { background: #d1fae5; color: #065f46; }
+.level-warning { background: #fef3c7; color: #92400e; }
+.level-error { background: #fee2e2; color: #991b1b; }
+
+/* Log entry animation */
+.log-entry {
+    animation: fadeIn 0.2s ease-out;
+    transition: all 0.15s ease;
+}
+.log-entry:hover {
+    background: #f8fafc;
+    transform: translateX(2px);
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Stat card icon rings */
+.stat-icon-ring {
+    width: 2.5rem; height: 2.5rem; border-radius: 0.75rem;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.125rem;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="space-y-6" data-slide>
+    <div id="toast-container"></div>
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">日志中心</h2>
+            <p class="text-sm text-gray-400 mt-1">查看系统运行日志和统计数据</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-xs text-gray-400" id="live-indicator">实时</span>
+        </div>
+    </div>
+
+    <!-- Enhanced Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center gap-3">
+                <div class="stat-icon-ring bg-gray-100 text-gray-600">📋</div>
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">总日志</p>
+                    <p id="stat-total" class="text-2xl font-bold text-gray-800 mt-0.5">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center gap-3">
+                <div class="stat-icon-ring bg-blue-100 text-blue-600">🔍</div>
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">DEBUG</p>
+                    <p id="stat-debug" class="text-2xl font-bold text-blue-600 mt-0.5">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center gap-3">
+                <div class="stat-icon-ring bg-green-100 text-green-600">ℹ️</div>
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">INFO</p>
+                    <p id="stat-info" class="text-2xl font-bold text-green-600 mt-0.5">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center gap-3">
+                <div class="stat-icon-ring bg-yellow-100 text-yellow-600">⚠️</div>
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">WARNING</p>
+                    <p id="stat-warning" class="text-2xl font-bold text-yellow-600 mt-0.5">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center gap-3">
+                <div class="stat-icon-ring bg-red-100 text-red-600">🚫</div>
+                <div>
+                    <p class="text-xs text-gray-400 font-medium">ERROR</p>
+                    <p id="stat-error" class="text-2xl font-bold text-red-600 mt-0.5">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <div class="flex flex-wrap gap-3 items-end">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">级别</label>
+                <select id="filter-level" class="px-3.5 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-sm">
+                    <option value="">所有级别</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">管道</label>
+                <select id="filter-pipeline" class="px-3.5 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-sm">
+                    <option value="">所有管道</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[140px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">模块名</label>
+                <input type="text" id="filter-module" placeholder="过滤模块..."
+                       class="px-3.5 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-sm w-full">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">起始时间</label>
+                <input type="datetime-local" id="filter-since" class="px-3.5 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1.5">结束时间</label>
+                <input type="datetime-local" id="filter-until" class="px-3.5 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-sm">
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-refresh"
+                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium text-sm transition-all shadow-sm">
+                    刷新
+                </button>
+                <button id="btn-autofollow"
+                        class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium text-sm transition-all">
+                    自动跟随
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pipeline Timeline -->
+    <div id="pipeline-timeline" class="hidden bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <h3 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <span class="w-2 h-2 bg-purple-500 rounded-full"></span>
+            管道时间线
+        </h3>
+        <div id="timeline-container" class="space-y-2 max-h-80 overflow-y-auto"></div>
+    </div>
+
+    <!-- Log Entries -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="font-semibold text-gray-800 flex items-center gap-2">
+                <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                日志列表
+            </h3>
+            <span class="text-xs text-gray-400" id="entry-count"></span>
+        </div>
+        <div id="log-entries" class="p-3 space-y-1 max-h-[70vh] overflow-y-auto font-mono text-sm"></div>
+    </div>
+</div>
+
+<script>
+let autoFollow = false;
+
+function showToast(message, type, duration) {
+    type = type || 'error';
+    duration = duration || 5000;
+    const container = document.getElementById('toast-container');
+    const icons = { error: '\u26A0', warning: '\u26A0', success: '\u2713', info: '\u2139' };
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.innerHTML = '<span class="toast-icon">' + (icons[type] || '') + '</span>'
+        + '<span class="toast-body">' + message + '</span>'
+        + '<button class="toast-close" onclick="this.parentElement.remove()">&times;</button>';
+    container.appendChild(toast);
+    setTimeout(function() { if (toast.parentNode) toast.remove(); }, duration);
+}
+
+async function loadLogs() {
+    const level = document.getElementById('filter-level').value;
+    const pipeline = document.getElementById('filter-pipeline').value;
+    const module = document.getElementById('filter-module').value;
+    const sinceEl = document.getElementById('filter-since');
+    const untilEl = document.getElementById('filter-until');
+
+    const params = new URLSearchParams({ limit: 200 });
+    if (level) params.set('level', level);
+    if (pipeline) params.set('pipeline', pipeline);
+    if (module) params.set('module', module);
+    if (sinceEl.value) params.set('since', sinceEl.value + ':00');
+    if (untilEl.value) params.set('until', untilEl.value + ':00');
+
+    try {
+        const resp = await fetch('/api/logs?' + params.toString());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
+        const data = await resp.json();
+        renderLogs(data.entries);
+        document.getElementById('entry-count').textContent = data.entries.length + ' 条';
+    } catch (e) {
+        console.error('Failed to load logs:', e);
+        showToast('加载日志失败: ' + e.message, 'error');
+    }
+}
+
+async function loadStats() {
+    try {
+        const resp = await fetch('/api/logs/stats');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        document.getElementById('stat-total').textContent = data.total || 0;
+        document.getElementById('stat-debug').textContent = data.by_level?.DEBUG || 0;
+        document.getElementById('stat-info').textContent = data.by_level?.INFO || 0;
+        document.getElementById('stat-warning').textContent = data.by_level?.WARNING || 0;
+        document.getElementById('stat-error').textContent = data.by_level?.ERROR || 0;
+
+        const pipResp = await fetch('/api/logs/pipelines');
+        if (!pipResp.ok) throw new Error('HTTP ' + pipResp.status);
+        const pipData = await pipResp.json();
+        const pipSelect = document.getElementById('filter-pipeline');
+        const currentVal = pipSelect.value;
+        pipSelect.innerHTML = '<option value="">所有管道</option>';
+        (pipData.pipelines || []).forEach(function(p) {
+            const opt = document.createElement('option');
+            opt.value = p;
+            opt.textContent = p;
+            pipSelect.appendChild(opt);
+        });
+        pipSelect.value = currentVal;
+    } catch (e) {
+        console.error('Failed to load stats:', e);
+        showToast('加载统计数据失败: ' + e.message, 'error');
+    }
+}
+
+function getLevelBadge(level) {
+    const cls = 'level-badge level-' + (level || 'info').toLowerCase();
+    return '<span class="' + cls + '">' + (level || 'INFO') + '</span>';
+}
+
+function renderLogs(entries) {
+    const container = document.getElementById('log-entries');
+    if (!entries || entries.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-400 py-12"><div class="text-4xl mb-3 opacity-30">📭</div><p>暂无匹配日志</p></div>';
+        return;
+    }
+
+    const html = entries.map(e => {
+        const ts = (e.timestamp || '').slice(0, 19);
+        const level = e.level || 'INFO';
+        const module = e.module || '';
+        const event = e.event || '';
+        const msg = e.message || '';
+        const error = e.error || '';
+        const duration = e.duration_ms;
+        const pipeline = e.pipeline;
+        const pipelineId = e.pipeline_id;
+        const durStr = duration ? ` <span class="text-gray-400 text-xs bg-gray-100 px-1.5 py-0.5 rounded">${duration}ms</span>` : '';
+        const pidStr = pipelineId ? ` <span class="text-gray-400 text-xs">#${pipelineId}</span>` : '';
+        const errStr = error ? `<div class="text-red-500 text-xs mt-1.5 pl-2 border-l-2 border-red-300">⚠ ${error}</div>` : '';
+        const pipelineBadge = pipeline ? `<span class="text-xs px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full">${pipeline}</span>` : '';
+
+        return `<div class="log-entry p-3 border-b border-gray-50 last:border-b-0 rounded-lg">
+            <div class="flex items-start gap-2.5 flex-wrap">
+                <span class="text-gray-400 text-xs whitespace-nowrap mt-0.5">${ts}</span>
+                ${getLevelBadge(level)}
+                <span class="text-gray-500 text-xs bg-gray-100 px-1.5 py-0.5 rounded">${module}</span>
+                <span class="text-blue-500 text-xs font-medium">${event}</span>
+                ${pipelineBadge}${durStr}${pidStr}
+            </div>
+            <div class="mt-1.5 text-gray-700 text-sm leading-relaxed ml-1">${msg}</div>
+            ${errStr}
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+
+    if (autoFollow) {
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
+function updateTimeline(entries) {
+    const groups = {};
+    entries.forEach(e => {
+        const pid = e.pipeline_id || e.pipeline || '_none';
+        if (!groups[pid]) groups[pid] = [];
+        groups[pid].push(e);
+    });
+
+    const container = document.getElementById('timeline-container');
+    if (Object.keys(groups).length === 0) {
+        container.innerHTML = '<div class="text-gray-400 text-sm text-center py-4">暂无管道数据</div>';
+        return;
+    }
+
+    container.innerHTML = Object.entries(groups).slice(0, 20).map(([pid, entries]) => {
+        const start = entries[0];
+        const events = entries.slice(0, 5).map(e => {
+            const cls = 'level-badge level-' + (e.level || 'info').toLowerCase();
+            return `<span class="${cls}">${e.event}</span>`;
+        }).join(' → ');
+        const totalMs = (entries[entries.length - 1].duration_ms ? ` <span class="text-gray-400 text-xs bg-gray-100 px-1.5 py-0.5 rounded">${Math.round(entries[entries.length - 1].duration_ms)}ms</span>` : '');
+        return `<div class="p-3 bg-gray-50 rounded-lg text-xs border border-gray-100 hover:border-purple-200 transition-all">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-purple-600">${pid}</span>
+                <span class="text-gray-500">${(start.timestamp || '').slice(0, 19)}</span>
+                ${totalMs}
+            </div>
+            <div class="mt-1.5 flex items-center gap-1 flex-wrap">${events}</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('pipeline-timeline').classList.remove('hidden');
+}
+
+document.getElementById('filter-level').addEventListener('change', loadLogs);
+document.getElementById('filter-pipeline').addEventListener('change', loadLogs);
+document.getElementById('filter-module').addEventListener('change', function() { loadLogs(); });
+document.getElementById('filter-since').addEventListener('change', loadLogs);
+document.getElementById('filter-until').addEventListener('change', loadLogs);
+document.getElementById('btn-refresh').addEventListener('click', () => {
+    loadLogs();
+    loadStats();
+});
+
+document.getElementById('btn-autofollow').addEventListener('click', function() {
+    autoFollow = !autoFollow;
+    this.textContent = autoFollow ? '停止跟随' : '自动跟随';
+    this.classList.toggle('from-blue-600', autoFollow);
+    this.classList.toggle('to-blue-700', autoFollow);
+    this.classList.toggle('bg-gray-100', !autoFollow);
+    this.classList.toggle('text-white', autoFollow);
+    this.classList.toggle('text-gray-600', !autoFollow);
+});
+
+loadLogs();
+loadStats();
+
+setInterval(() => {
+    if (autoFollow) {
+        loadLogs();
+        loadStats();
+    }
+}, 5000);
+</script>
+{% endblock %}
