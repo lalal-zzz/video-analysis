@@ -24,7 +24,7 @@ class YouTubeScraper(BaseScraper):
             "quiet": True,
             "extract_flat": True,
             "no_warnings": True,
-            "ignoreerrors": True,
+            "ignoreerrors": False,
             "skip_download": True,
         }
 
@@ -90,16 +90,26 @@ class YouTubeScraper(BaseScraper):
     ) -> list[VideoMetadata]:
         def _search_author() -> list[dict[str, Any]]:
             import yt_dlp
-
-            with yt_dlp.YoutubeDL(self._ydl_opts) as ydl:
+            from urllib.parse import urlparse
+            normalized = author.strip().rstrip("/")
+            if normalized.startswith("@"):
+                normalized = "https://www.youtube.com/" + normalized
+            elif normalized.startswith("UC") and "/" not in normalized:
+                normalized = "https://www.youtube.com/channel/" + normalized
+            parsed = urlparse(normalized)
+            if parsed.scheme != "https" or parsed.username or parsed.password or parsed.hostname not in {"youtube.com", "www.youtube.com"} or not parsed.path.startswith(("/@", "/channel/", "/c/", "/user/")):
+                raise ScraperError("Use a YouTube channel URL, @handle or UC channel ID; display names are ambiguous")
+            normalized = "https://www.youtube.com" + parsed.path.rstrip("/")
+            if normalized.endswith(("/videos", "/shorts", "/streams")):
+                normalized = normalized.rsplit("/", 1)[0]
+            with yt_dlp.YoutubeDL({**self._ydl_opts, "playlistend": max_results}) as ydl:
                 try:
-                    # 先尝试通过 from: 语法搜索该频道的视频
                     result = ydl.extract_info(
-                        f"ytsearch{max_results}:from:{author}",
+                        normalized + "/videos",
                         download=False,
                     )
-                except Exception:
-                    return []
+                except Exception as exc:
+                    raise ScraperError(f"YouTube author fetch failed: {exc}") from exc
                 return result.get("entries", []) if result else []
 
         loop = asyncio.get_event_loop()
@@ -147,9 +157,9 @@ class YouTubeScraper(BaseScraper):
             description=entry.get("description", ""),
             tags=entry.get("tags", []),
             stats=VideoStats(
-                views=entry.get("view_count", 0),
-                likes=entry.get("like_count", 0),
-                comments=entry.get("comment_count", 0),
+                views=entry.get("view_count") or 0,
+                likes=entry.get("like_count") or 0,
+                comments=entry.get("comment_count") or 0,
             ),
         )
 

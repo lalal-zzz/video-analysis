@@ -9,7 +9,6 @@ from models.analysis import AnalysisInsight, AnalysisRequest, AnalysisResult
 from models.transcript import VideoTranscript
 
 
-# 项目根目录（cli/main.py 的 parent = cli/, parent parent = project root）
 # analyzers/claude_client.py 的 parent = analyzers/, parent parent = project root
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _PROJECT_SKILLS_DIR = _PROJECT_ROOT / "config" / "skills"
@@ -109,15 +108,21 @@ class ClaudeAnalyzer(BaseAnalyzer):
         if self._model:
             cmd.extend(["-m", self._model])
 
-        cmd.extend(["-p", prompt])
+        cmd.append("-p")
 
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            stdout, stderr = await proc.communicate()
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(prompt.encode("utf-8")), timeout=300)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                proc.kill()
+                await proc.communicate()
+                raise
         except FileNotFoundError as e:
             raise AnalyzerError(
                 f"CLI '{self._cli}' not found. "

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
+import os
 import subprocess
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, gettempdir
 from typing import Any
 
 import httpx
@@ -15,24 +18,49 @@ from models.transcript import TranscriptSegment, VideoTranscript
 from models.video import VideoMetadata
 from transcribers.base import BaseTranscriber
 
+logger = logging.getLogger(__name__)
+
 
 class WhisperClient(BaseTranscriber):
     def __init__(
         self,
-        model_name: str = "whisper-large-v3",
+        model_name: str = "base",
         device: str = "cpu",
-        language: str = "zh",
+        language: str | None = None,
         download_dir: str | None = None,
+        load_cookies: bool = True,
     ) -> None:
         self._model_name = model_name
         self._device = device
         self._language = language
         self._download_dir = (
-            Path(download_dir) if download_dir else Path("/tmp/whisper_downloads")
+            Path(download_dir) if download_dir else Path(gettempdir()) / "video-analysis-audio"
         )
         self._download_dir.mkdir(parents=True, exist_ok=True)
         self._http = httpx.AsyncClient(timeout=300.0, follow_redirects=True)
+        self._platform_cookies: dict[str, dict[str, str]] = {}
+        if load_cookies:
+            self._load_platform_cookies()
         self._model: Any = None
+        # One model instance is shared by a batch. Downloads may run concurrently,
+        # but Whisper inference is serialized to avoid model/GPU thread-safety issues.
+        self._transcribe_lock = asyncio.Lock()
+
+    def _load_platform_cookies(self) -> None:
+        """Reuse web-login cookies for protected platform media requests."""
+        for platform in ("bilibili", "douyin"):
+            cookie_file = Path("data") / f"{platform}_cookies.json"
+            if not cookie_file.exists():
+                continue
+            try:
+                cookies = json.loads(cookie_file.read_text(encoding="utf-8")).get("cookies", {})
+                self._platform_cookies[platform] = {
+                    str(name): str(value) for name, value in cookies.items() if value
+                }
+                for name, value in cookies.items():
+                    self._http.cookies.set(name, value, domain=f".{platform}.com", path="/")
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("Could not load %s cookies for media download: %s", platform, exc)
 
     def _lazy_load_model(self) -> None:
         if self._model is not None:
@@ -46,8 +74,6 @@ class WhisperClient(BaseTranscriber):
         self._model = whisper.load_model(self._model_name, device=self._device)
 
     async def get_transcript(self, video: VideoMetadata) -> VideoTranscript:
-        self._lazy_load_model()
-
         audio_path = await self._download_audio(video)
         if audio_path is None:
             raise TranscriberError(
@@ -55,7 +81,9 @@ class WhisperClient(BaseTranscriber):
             )
 
         try:
-            result = await self._transcribe(audio_path)
+            async with self._transcribe_lock:
+                await asyncio.to_thread(self._lazy_load_model)
+                result = await self._transcribe(audio_path)
         except Exception as e:
             raise TranscriberError(
                 f"Whisper transcription failed for {video.video_id}: {e}"
@@ -79,6 +107,20 @@ class WhisperClient(BaseTranscriber):
         transcript.build_full_text()
         return transcript
 
+    async def transcribe_file(self, video: VideoMetadata, path: Path) -> VideoTranscript:
+        """Transcribe managed media without re-downloading or deleting the source."""
+        async with self._transcribe_lock:
+            await asyncio.to_thread(self._lazy_load_model)
+            result = await self._transcribe(path)
+        transcript = VideoTranscript(video=video, source="whisper", segments=[
+            TranscriptSegment(start=s["start"], end=s["end"], text=s["text"].strip())
+            for s in result.get("segments", []) if s.get("text", "").strip()
+        ])
+        transcript.build_full_text()
+        if not transcript.full_text:
+            transcript.full_text = result.get("text", "").strip()
+        return transcript
+
     async def supports(self, video: VideoMetadata) -> bool:
         return True
 
@@ -89,7 +131,20 @@ class WhisperClient(BaseTranscriber):
         if video.platform == "bilibili":
             audio_url = await self._resolve_bilibili_audio(video.video_id)
             if audio_url:
-                return await self._download_url(audio_url, video.video_id)
+                downloaded = await self._download_url(
+                    audio_url, f"bilibili_{video.video_id}", headers=self._bilibili_headers()
+                )
+                if downloaded is not None:
+                    return downloaded
+            try:
+                return await self._download_with_ytdlp(
+                    video.url,
+                    f"bilibili_{video.video_id}",
+                    platform="bilibili",
+                )
+            except TranscriberError as exc:
+                logger.warning("Bilibili download fallback failed for %s: %s", video.video_id, exc)
+                return None
 
         if video.platform == "douyin":
             return await self._download_douyin_audio(video)
@@ -97,51 +152,125 @@ class WhisperClient(BaseTranscriber):
         return None
 
     async def _download_youtube_audio(self, video_id: str) -> Path | None:
+        """Download the best available audio stream without requiring ffmpeg."""
+        return await self._download_with_ytdlp(
+            f"https://www.youtube.com/watch?v={video_id}", video_id, is_youtube=True
+        )
+
+    async def _download_with_ytdlp(
+        self,
+        url: str,
+        output_stem: str,
+        *,
+        is_youtube: bool = False,
+        platform: str = "",
+    ) -> Path | None:
+        """Download a media stream and return its actual file type.
+
+        Whisper accepts WebM/M4A/MP4 directly, so forcing an MP3 conversion only
+        adds an unnecessary ffmpeg dependency during download.
+        """
         try:
             import yt_dlp
         except ImportError:
             raise TranscriberError("yt-dlp is required. Run: pip install yt-dlp")
 
-        output_path = self._download_dir / f"{video_id}.mp3"
-        if output_path.exists():
-            return output_path
-
         ydl_opts = {
             "format": "bestaudio/best",
-            "outtmpl": str(output_path.with_suffix("")),
-            "postprocessors": [
-                {"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}
-            ],
+            "outtmpl": str(self._download_dir / f"{output_stem}.%(ext)s"),
             "quiet": True,
             "no_warnings": True,
+            "noplaylist": True,
+            "overwrites": True,
         }
+        generated_cookie_file: Path | None = None
+        cookie_file = os.getenv("YTDLP_COOKIE_FILE", "")
+        if not cookie_file:
+            default_cookie_file = Path(__file__).resolve().parents[1] / "data" / "ytdlp_cookies.txt"
+            if default_cookie_file.is_file():
+                cookie_file = str(default_cookie_file)
+        if not cookie_file and platform in self._platform_cookies:
+            generated_cookie_file = self._create_cookie_file(
+                platform, self._platform_cookies[platform]
+            )
+            cookie_file = str(generated_cookie_file)
+        if cookie_file:
+            ydl_opts["cookiefile"] = cookie_file
+        browser = os.getenv("YTDLP_COOKIES_FROM_BROWSER", "")
+        if browser and not cookie_file:
+            ydl_opts["cookiesfrombrowser"] = (browser,)
+        if is_youtube:
+            po_token = os.getenv("YTDLP_PO_TOKEN", "")
+            if po_token:
+                ydl_opts["extractor_args"] = {"youtube": {"po_token": [po_token]}}
         try:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 None,
-                lambda: yt_dlp.YoutubeDL(ydl_opts).download(
-                    [f"https://www.youtube.com/watch?v={video_id}"]
-                ),
+                lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]),
             )
-            mp3_path = output_path.with_suffix(".mp3")
-            if mp3_path.exists():
-                return mp3_path
-            if output_path.exists():
-                return output_path
+            files = [
+                path for path in self._download_dir.glob(f"{output_stem}.*")
+                if path.suffix not in {".part", ".ytdl"} and path.is_file()
+            ]
+            if files:
+                return max(files, key=lambda path: path.stat().st_mtime)
         except Exception as e:
-            raise TranscriberError(f"yt-dlp download failed: {e}") from e
+            cookie_hint = (
+                " Import a Netscape cookie file at /download-cookies, or configure "
+                "YTDLP_COOKIE_FILE."
+                if is_youtube or platform == "douyin" else ""
+            )
+            raise TranscriberError(f"yt-dlp download failed: {e}.{cookie_hint}") from e
+        finally:
+            if generated_cookie_file is not None:
+                generated_cookie_file.unlink(missing_ok=True)
         return None
+
+    def _create_cookie_file(self, platform: str, cookies: dict[str, str]) -> Path:
+        """Create a short-lived Netscape cookie file for yt-dlp."""
+        domain = ".bilibili.com" if platform == "bilibili" else ".douyin.com"
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".cookies.txt",
+            prefix=f"{platform}_",
+            dir=self._download_dir,
+            delete=False,
+        ) as handle:
+            handle.write("# Netscape HTTP Cookie File\n")
+            for name, value in cookies.items():
+                handle.write(f"{domain}\tTRUE\t/\tFALSE\t0\t{name}\t{value}\n")
+            return Path(handle.name)
+
+    async def _bootstrap_anonymous_cookies(self, platform: str) -> None:
+        """Collect fresh anonymous cookies before falling back to account login."""
+        if self._platform_cookies.get(platform):
+            return
+        home_urls = {
+            "bilibili": "https://www.bilibili.com/",
+            "douyin": "https://www.douyin.com/",
+        }
+        url = home_urls.get(platform)
+        if not url:
+            return
+        headers = self._bilibili_headers() if platform == "bilibili" else {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.douyin.com/",
+        }
+        try:
+            await self._http.get(url, headers=headers)
+            cookies = {str(name): str(value) for name, value in self._http.cookies.items()}
+            if cookies:
+                self._platform_cookies[platform] = cookies
+        except httpx.HTTPError as exc:
+            logger.warning("Could not initialize anonymous %s cookies: %s", platform, exc)
 
     async def _resolve_bilibili_audio(self, video_id: str) -> str | None:
         info_url = f"https://api.bilibili.com/x/web-interface/view?bvid={video_id}"
         try:
-            resp = await self._http.get(
-                info_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Referer": "https://www.bilibili.com/",
-                },
-            )
+            headers = self._bilibili_headers()
+            resp = await self._http.get(info_url, headers=headers)
             resp.raise_for_status()
             data = resp.json()
             if data.get("code") != 0:
@@ -150,40 +279,54 @@ class WhisperClient(BaseTranscriber):
             cid = data["data"]["cid"]
             play_url = (
                 f"https://api.bilibili.com/x/player/playurl?"
-                f"bvid={video_id}&cid={cid}&qn=16&type=mp4"
+                f"bvid={video_id}&cid={cid}&qn=16&fnval=16&fourk=1"
             )
-            play_resp = await self._http.get(
-                play_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Referer": "https://www.bilibili.com/",
-                },
-            )
+            play_resp = await self._http.get(play_url, headers=headers)
             play_resp.raise_for_status()
             play_data = play_resp.json()
             if play_data.get("code") != 0:
                 return None
 
-            audio_urls = play_data["data"].get("durl", [])
+            audio_urls = play_data["data"].get("dash", {}).get("audio", [])
             if audio_urls:
-                return audio_urls[0].get("url")
-        except Exception:
-            pass
+                return audio_urls[0].get("baseUrl") or audio_urls[0].get("base_url")
+            durl = play_data["data"].get("durl", [])
+            if durl:
+                return durl[0].get("url")
+        except (httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning("Bilibili audio resolution failed for %s: %s", video_id, exc)
         return None
+
+    @staticmethod
+    def _bilibili_headers() -> dict[str, str]:
+        return {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.bilibili.com/",
+            "Origin": "https://www.bilibili.com",
+        }
 
     async def _download_douyin_audio(self, video: VideoMetadata) -> Path | None:
         """下载抖音视频音频。
 
-        策略：
-        1. 如果安装了 dy-cli，通过 subprocess 调用它下载
-        2. 否则，尝试通过 Douyin API 直接解析视频流 URL 并下载
+        策略：dy-cli、yt-dlp，最后才尝试抖音 API。
         """
         # 策略 1: 尝试使用 dy-cli
         audio_path = await self._download_douyin_via_dycli(video)
         if audio_path is not None:
             return audio_path
 
-        # 策略 2: 尝试直接解析视频流
+        # 策略 2: yt-dlp supports Douyin URLs and handles many signature changes.
+        try:
+            await self._bootstrap_anonymous_cookies("douyin")
+            audio_path = await self._download_with_ytdlp(
+                video.url, f"douyin_{video.video_id}", platform="douyin"
+            )
+            if audio_path is not None:
+                return audio_path
+        except TranscriberError as exc:
+            logger.warning("yt-dlp Douyin download failed for %s: %s", video.video_id, exc)
+
+        # 策略 3: 尝试直接解析视频流
         audio_path = await self._download_douyin_via_api(video)
         if audio_path is not None:
             return audio_path
@@ -345,13 +488,15 @@ class WhisperClient(BaseTranscriber):
 
         return None
 
-    async def _download_url(self, url: str, video_id: str) -> Path | None:
-        output_path = self._download_dir / f"{video_id}.mp3"
+    async def _download_url(
+        self, url: str, video_id: str, headers: dict[str, str] | None = None
+    ) -> Path | None:
+        output_path = self._download_dir / f"{video_id}.m4s"
         if output_path.exists():
             return output_path
 
         try:
-            resp = await self._http.get(url)
+            resp = await self._http.get(url, headers=headers)
             resp.raise_for_status()
             output_path.write_bytes(resp.content)
             return output_path

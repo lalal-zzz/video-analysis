@@ -1,0 +1,18 @@
+{
+  "name": "video-analysis",
+  "version": "0.1.0",
+  "description": "Search, authenticate, batch-download, transcribe, and analyze videos through MCP.",
+  "author": {"name": "lalal-zzz"},
+  "homepage": "https://github.com/lalal-zzz/video-analysis",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Video Analysis",
+    "shortDescription": "多平台视频批量下载与分析",
+    "longDescription": "通过浏览器登录、批量任务和可读取的转录文件处理 Bilibili、YouTube 与抖音视频。",
+    "developerName": "lalal-zzz",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": ["获取多个博主的最新视频，并批量下载。"]
+  }
+}

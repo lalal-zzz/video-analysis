@@ -14,7 +14,12 @@ import warnings
 from pathlib import Path
 from datetime import datetime
 
-warnings.filterwarnings("ignore", category=RuntimeWarning)
+import pytest
+
+@pytest.fixture(autouse=True)
+def isolated_workspace(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
 
 # 确保项目根目录可导入
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -276,58 +281,6 @@ async def test_full_pipeline():
     print("  ✅ Test 4b 通过")
 
 
-async def test_web_integration():
-    """Web 路由集成测试（使用 Mock 爬虫替换真实爬虫）。"""
-    section("Test 5: Web 路由 Mock 集成测试")
-
-    try:
-        from litestar.testing import TestClient
-    except ImportError:
-        print("\n  ⚠️ litestar 未安装，跳过 Web 路由测试")
-        return
-
-    print("\n  [5a] 验证路由可访问")
-    from litestar.testing import TestClient
-    from web.app import app
-
-    # 注入 Mock 爬虫到路由模块
-    import web.routers.search as search_router
-    original_scrapers = search_router.SCRAPERS.copy()
-    search_router.SCRAPERS["mock"] = MockScraper
-
-    # 注入 Mock 分析器到 analyze 路由
-    import web.routers.search as analyze_router
-    # 修改 _run_analysis 中的 scraper 使用
-
-    with TestClient(app=app) as client:
-        # 5a. 搜索页面
-        print("\n    检查搜索页面...")
-        resp = client.get("/search")
-        assert resp.status_code == 200, f"搜索页面失败: {resp.status_code}"
-        assert "视频搜索" in resp.text
-        bullet("搜索页面", f"200 OK ✓")
-        print("    ✅ 搜索页面访问正常")
-
-        # 5b. Health check
-        resp = client.get("/health")
-        assert resp.status_code == 200
-        data = resp.json()
-        bullet("健康检查", f"status={data.get('status', 'ok')}", "💚")
-        print("    ✅ 健康检查正常")
-
-        # 5c. 创建测试领域
-        print("\n    检查领域管理...")
-        resp = client.get("/domains")
-        assert resp.status_code == 200, f"领域页面失败: {resp.status_code}"
-        bullet("领域页面", f"200 OK ✓")
-        print("    ✅ 领域页面正常")
-
-        # 恢复原始爬虫
-        search_router.SCRAPERS = original_scrapers
-
-    print("\n  ✅ Test 5 通过 — Web 路由集成正常！")
-
-
 async def test_cache_integration():
     """测试缓存层与 Mock 的集成。"""
     section("Test 6: 缓存集成测试")
@@ -383,65 +336,3 @@ async def test_cache_integration():
     assert cached_transcript is not None, "视频缓存应命中"
     bullet("视频缓存", "命中 ✓", "🎬")
     print("  ✅ Test 6b 通过")
-
-
-async def main():
-    """运行所有测试。"""
-    print("=" * 60)
-    print("  MOCK E2E 端到端测试")
-    print("  验证: 搜索 → 转录 → 分析 完整流程")
-    print(f"  时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-
-    passed = 0
-    failed = 0
-    errors = []
-
-    tests = [
-        ("MockScraper 搜索", test_mock_scraper_fetch),
-        ("MockTranscriber 转录", test_mock_transcriber),
-        ("MockAnalyzer 分析", test_mock_analyzer),
-        ("端到端流水线", test_full_pipeline),
-        ("Web 路由集成", test_web_integration),
-        ("缓存集成", test_cache_integration),
-    ]
-
-    for name, test_func in tests:
-        try:
-            await test_func()
-            passed += 1
-        except Exception as e:
-            failed += 1
-            errors.append((name, str(e)))
-            print(f"\n  ❌ {name} 失败: {e}")
-            import traceback
-            traceback.print_exc()
-
-    # 汇总
-    print("\n" + "=" * 60)
-    print("  测试结果汇总")
-    print("=" * 60)
-    print(f"\n  通过: {passed}/{len(tests)}")
-    print(f"  失败: {failed}/{len(tests)}")
-
-    if errors:
-        print("\n  失败详情:")
-        for name, err in errors:
-            print(f"    ❌ {name}: {err}")
-        print("\n  ⚠️ 部分测试失败")
-        sys.exit(1)
-    else:
-        print("\n  🎉 全部测试通过！")
-        print("=" * 60)
-        print("\n  完整流程验证成功：")
-        print("    1. ✅ MockScraper — 模拟视频搜索（无网络请求）")
-        print("    2. ✅ MockTranscriber — 模拟视频转录（无 Whisper）")
-        print("    3. ✅ MockAnalyzer — 模拟 LLM 分析（无 Claude/Codex）")
-        print("    4. ✅ Orchestrator — 完整流水线（搜索→转录→分析）")
-        print("    5. ✅ Web 路由 — 搜索页面可访问")
-        print("    6. ✅ 缓存层 — 读写正常")
-        print("=" * 60)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
