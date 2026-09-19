@@ -1,0 +1,52 @@
+# analyze-stock 全局配置
+
+cache:
+  # 缓存存储目录
+  storage_dir: cache/storage
+  # 视频缓存 TTL（小时）
+  video_ttl_hours: 72
+  # 搜索查询缓存 TTL（小时）
+  query_ttl_hours: 24
+
+scraper:
+  # 最大并发请求数
+  max_concurrency: 3
+  # 请求间隔（秒），避免被平台限频
+  request_delay_seconds: 1.0
+  # 自定义 User-Agent（留空使用默认值）
+  user_agent: ""
+
+transcriber:
+  # Whisper 模型名称
+  whisper_model: whisper-large-v3
+  # 设备：cpu / cuda
+  device: cpu
+  # 转录语言
+  language: zh
+
+analyzer:
+  # Claude API Key（仅 Python SDK 模式需要，CLI 模式不需要）
+  claude_api_key: ""
+  # Codex/OpenAI API Key（仅 Python SDK 模式需要，CLI 模式不需要）
+  codex_api_key: ""
+  # 默认分析模型
+  default_model: claude
+  # 最大输出 token 数
+  max_tokens: 4096
+  # 采样温度
+  temperature: 0.3
+
+data:
+  # 数据存储根目录（转录文件、分析结果）
+  data_dir: data
+  # 转录文件子目录
+  transcript_subdir: transcripts
+  # 分析结果子目录
+  result_subdir: results
+
+# 提示词模板路径
+prompt_templates:
+  # 分析 prompt 模板（相对于项目根目录）
+  analysis: config/prompts/analysis.md
+  # 摘要 prompt 模板
+  summary: config/prompts/summary.md

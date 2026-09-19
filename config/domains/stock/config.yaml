@@ -1,0 +1,19 @@
+description: "股票投资领域 — 监控股票投资类视频创作者"
+
+discovery:
+  author_search:
+    - platform: bilibili
+      keywords: ["股票分析", "价值投资", "财报解读"]
+      max_results: 10
+    - platform: youtube
+      keywords: ["stock analysis", "value investing", "financial analysis"]
+      max_results: 10
+
+  video_search:
+    - platform: bilibili
+      keywords: ["茅台", "白酒", "新能源"]
+      max_results: 20
+
+monitoring:
+  max_videos_per_author: 3
+  schedule: "0 8 * * *"

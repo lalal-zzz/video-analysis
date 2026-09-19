@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block page_title %}转录浏览{% endblock %}
+{% block header_extra %}
+<div class="relative w-full sm:w-72">
+    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+    <input type="text" id="transcript-search"
+           class="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl bg-gray-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 text-sm transition-all search-input-glow"
+           placeholder="搜索作者名或视频ID...">
+</div>
+{% endblock %}
+{% block content %}
+<div class="space-y-6" data-slide>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left: grouped transcript list -->
+        <div class="lg:col-span-1 bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                    爬取会话
+                </h3>
+            </div>
+            <div class="p-3 max-h-[75vh] overflow-y-auto" id="transcript-list">
+                {% for date, author_groups in groups.items() %}
+                <div class="mb-4 bg-gray-50 rounded-xl p-2 shadow-sm border border-gray-50 date-group" data-date="{{ date }}">
+                    <div class="flex items-center justify-between mb-1.5 cursor-pointer select-none date-toggle px-1.5"
+                         onclick="toggleDate(this)">
+                        <span class="text-xs font-semibold text-gray-500 uppercase bg-white px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm">
+                            <span class="date-arrow transition-transform">▾</span>
+                            {{ date }}
+                        </span>
+                        <span class="text-xs text-gray-400 font-medium author-count-badge">{{ author_groups | length }} 位作者</span>
+                    </div>
+                    <div class="space-y-1 date-body">
+                        {% for author, videos in author_groups.items() %}
+                        <div class="mb-1 bg-white rounded-lg shadow-sm border border-gray-50 overflow-hidden author-group" data-author="{{ author }}">
+                            <div class="text-xs text-gray-500 px-2.5 py-1.5 font-medium cursor-pointer select-none author-toggle flex items-center gap-1.5 hover:bg-gray-50 transition-colors"
+                                 onclick="toggleAuthor(this)">
+                                <span class="author-arrow transition-transform">▾</span>
+                                <span class="w-5 h-5 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0">{{ author[0] | upper }}</span>
+                                <span class="author-name">{{ author }}</span>
+                                <span class="text-gray-400 text-[10px] ml-auto video-count-badge">{{ videos | length }} 个视频</span>
+                            </div>
+                            <div class="author-body">
+                                {% for v in videos %}
+                                <div class="px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg cursor-pointer transition-all mx-1 mb-0.5 flex items-center justify-between border-b border-gray-50 last:border-b-0 gap-2 video-item"
+                                     data-video-id="{{ v.video_id }}"
+                                     hx-get="/transcripts/{{ v.author }}/{{ v.video_id }}?partial=true"
+                                     hx-target="#transcript-content"
+                                     hx-trigger="click"
+                                     hx-indicator="#loading-indicator">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="w-1.5 h-1.5 bg-gray-300 rounded-full shrink-0"></span>
+                                        <span class="truncate text-xs font-mono video-id-text">{{ v.video_id }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        {% if v.get("play_count") %}
+                                        <span class="text-[10px] text-orange-500 flex items-center gap-0.5 font-medium">
+                                            ▶ {{ v.play_count }}
+                                        </span>
+                                        {% endif %}
+                                        <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{{ v.size }}B</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% if not loop.last %}<div class="border-t border-gray-100 my-3"></div>{% endif %}
+                {% endfor %}
+                {% if not groups %}
+                <div class="text-center py-12">
+                    <div class="text-5xl mb-4 opacity-30">📄</div>
+                    <p class="text-gray-400 text-lg font-medium">暂无转录数据</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right: transcript content -->
+        <div class="lg:col-span-2">
+            <div id="loading-indicator" class="hidden">
+                <div class="bg-white rounded-2xl shadow-md border border-gray-100 p-8 text-center">
+                    <div class="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                    <p class="text-gray-400 mt-3 text-sm">加载中...</p>
+                </div>
+            </div>
+            <div id="transcript-content">
+                <div class="bg-white rounded-2xl shadow-md border border-gray-100 p-12 text-center">
+                    <div class="text-6xl mb-4 opacity-30">📄</div>
+                    <p class="text-gray-400 text-lg font-medium">选择一条转录</p>
+                    <p class="text-gray-300 text-sm mt-1">点击左侧列表查看转录内容</p>
+                    <div class="mt-4 text-xs text-gray-300 space-x-3">
+                        <span>Ctrl+K 全局搜索</span>
+                        <span>|</span>
+                        <span>点击搜索框过滤作者/视频</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.date-body.hidden,
+.author-body.hidden {
+    display: none;
+}
+</style>
+
+<script>
+function toggleDate(el) {
+    const body = el.nextElementSibling;
+    const arrow = el.querySelector('.date-arrow');
+    body.classList.toggle('hidden');
+    arrow.style.transform = body.classList.contains('hidden') ? 'rotate(-90deg)' : '';
+}
+
+function toggleAuthor(el) {
+    const body = el.nextElementSibling;
+    const arrow = el.querySelector('.author-arrow');
+    body.classList.toggle('hidden');
+    arrow.style.transform = body.classList.contains('hidden') ? 'rotate(-90deg)' : '';
+}
+
+// Real-time search filter
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('transcript-search');
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', function() {
+        const q = this.value.toLowerCase().trim();
+        document.querySelectorAll('#transcript-list .date-group').forEach(group => {
+            let groupHasMatch = false;
+            group.querySelectorAll('.author-group').forEach(ag => {
+                const author = ag.dataset.author?.toLowerCase() || '';
+                let authorHasMatch = false;
+                ag.querySelectorAll('.video-item').forEach(vi => {
+                    const vid = vi.dataset.videoId?.toLowerCase() || '';
+                    const matches = !q || author.includes(q) || vid.includes(q);
+                    vi.style.display = matches ? '' : 'none';
+                    if (matches) authorHasMatch = true;
+                });
+                ag.style.display = authorHasMatch ? '' : 'none';
+                if (authorHasMatch) groupHasMatch = true;
+            });
+            group.style.display = groupHasMatch ? '' : 'none';
+        });
+    });
+});
+</script>
+{% endblock %}
