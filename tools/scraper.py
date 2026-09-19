@@ -100,8 +100,13 @@ def get_author_latest_videos(platform: str, author: str, since: str = "", max_n:
 
     def _run() -> list[dict]:
         scraper = ScraperPool.get(platform)
-        result = _run_async(scraper.fetch_author_videos(author))
-        videos = result.videos[:max_n] if hasattr(result, "videos") else []
+        result = _run_async(scraper.fetch_author_videos(author, max_results=max_n))
+        videos = result.videos if hasattr(result, "videos") else result
+        videos = sorted(videos, key=lambda v: v.publish_time or datetime.min, reverse=True)
+        if since:
+            cutoff = datetime.fromisoformat(since)
+            videos = [v for v in videos if v.publish_time and v.publish_time >= cutoff]
+        videos = videos[:max_n]
         return [
             {
                 "video_id": v.video_id,

@@ -112,13 +112,14 @@ class DataManager:
                 })
         return results
 
-    def list_transcript_count(self, days: int = 7, domain: str | None = None) -> int:
-        cutoff = datetime.now().timestamp() - days * 86400
+    def list_transcript_count(self, days: int | None = None, domain: str | None = None) -> int:
+        """Return transcript count, optionally limited to a recent number of days."""
+        cutoff = datetime.now().timestamp() - days * 86400 if days is not None else None
         total = 0
         search_root = (self._root / domain) if domain else self._root
         for d in search_root.rglob("transcripts"):
             for f in d.rglob("*.txt"):
-                if f.stat().st_mtime >= cutoff:
+                if cutoff is None or f.stat().st_mtime >= cutoff:
                     total += 1
         return total
 

@@ -54,15 +54,21 @@ class CodexAnalyzer(BaseAnalyzer):
         return "\n".join(parts)
 
     async def _run_codex(self, prompt: str) -> str:
-        cmd = [self._cli, "-p", prompt]
+        cmd = [self._cli, "exec", "--skip-git-repo-check", "-"]
 
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            stdout, stderr = await proc.communicate()
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(prompt.encode("utf-8")), timeout=300)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                proc.kill()
+                await proc.communicate()
+                raise
         except FileNotFoundError as e:
             raise AnalyzerError(
                 f"CLI '{self._cli}' not found. Install it first, or set a different path."

@@ -24,7 +24,7 @@ COOKIE_FILE = Path("data") / "bilibili_cookies.json"
 class BilibiliScraper(BaseScraper):
     platform = "bilibili"
 
-    def __init__(self, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(self, client: httpx.AsyncClient | None = None, *, load_cookies: bool = True) -> None:
         self._client = client or httpx.AsyncClient(
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
@@ -36,7 +36,8 @@ class BilibiliScraper(BaseScraper):
         self._search_url = "https://api.bilibili.com/x/web-interface/search/type"
         self._space_url = "https://api.bilibili.com/x/space/arc/search"
         self._nav_url = "https://api.bilibili.com/x/web-interface/nav"
-        self._load_cookies()
+        if load_cookies:
+            self._load_cookies()
 
     def _load_cookies(self):
         if not COOKIE_FILE.exists():
@@ -73,6 +74,52 @@ class BilibiliScraper(BaseScraper):
             return data.get("code") == 0 and data.get("data", {}).get("isLogin", False)
         except Exception:
             return False
+
+    async def fetch_followed_authors(self, max_results: int = 200) -> list[dict[str, Any]]:
+        """Return the logged-in user's Bilibili following list."""
+        nav_resp = await self._client.get(self._nav_url)
+        nav_data = nav_resp.json()
+        account = nav_data.get("data", {})
+        if nav_data.get("code") != 0 or not account.get("isLogin"):
+            raise ScraperError("请先完成 Bilibili 登录")
+
+        mid = account.get("mid")
+        if not mid:
+            raise ScraperError("登录信息中缺少用户 ID")
+
+        authors: list[dict[str, Any]] = []
+        page = 1
+        limit = max(1, min(500, max_results))
+        while len(authors) < limit:
+            resp = await self._client.get(
+                "https://api.bilibili.com/x/relation/followings",
+                params={
+                    "vmid": mid,
+                    "pn": page,
+                    "ps": 50,
+                    "order": "desc",
+                    "order_type": "attention",
+                },
+            )
+            data = resp.json()
+            if data.get("code") != 0:
+                raise ScraperError(data.get("message") or "读取 Bilibili 关注列表失败")
+            rows = data.get("data", {}).get("list", [])
+            if not rows:
+                break
+            for row in rows:
+                author_mid = str(row.get("mid", ""))
+                name = str(row.get("uname", "")).strip()
+                if author_mid and name:
+                    authors.append({
+                        "name": name,
+                        "author_id": author_mid,
+                        "url": f"https://space.bilibili.com/{author_mid}",
+                    })
+                    if len(authors) >= limit:
+                        break
+            page += 1
+        return authors
 
     @staticmethod
     async def get_qrcode_info() -> dict[str, Any]:
@@ -233,45 +280,7 @@ class BilibiliScraper(BaseScraper):
     ) -> list[VideoMetadata]:
         mid = await self._resolve_mid(author)
         if mid is None:
-            return []
-        try:
-            from bilibili_api import user as bili_user
-            u = bili_user.User(mid)
-            _r = []
-            p = 1
-            while len(_r) < max_results:
-                pd = await u.get_videos(pn=p)
-                if not isinstance(pd, dict):
-                    break
-                vl = pd.get("data", {}).get("list", {}).get("vlist", [])
-                if not vl:
-                    break
-                for item in vl:
-                    bvid = item.get("bvid")
-                    if not bvid:
-                        continue
-                    pubdate = item.get("created")
-                    pt = datetime.fromtimestamp(pubdate) if isinstance(pubdate, (int, float)) and pubdate > 0 else None
-                    _r.append(VideoMetadata(
-                        platform="bilibili", video_id=str(bvid), title=item.get("title", ""),
-                        author=item.get("author", ""),
-                        author_url=f"https://space.bilibili.com/{item.get('mid', '')}",
-                        url=f"https://www.bilibili.com/video/{bvid}",
-                        duration=self._parse_duration(item.get("length")),
-                        thumbnail_url=item.get("pic", ""),
-                        stats=VideoStats(
-                            views=int(item.get("play", 0)),
-                            likes=int(item.get("video_review", 0)),
-                            comments=int(item.get("comment", 0)),
-                        ),
-                        publish_time=pt,
-                    ))
-                    if len(_r) >= max_results:
-                        break
-                p += 1
-            return _r[:max_results]
-        except Exception:
-            pass
+            raise ScraperError("Author not resolved; use the exact Bilibili UID or profile URL")
         _r = []
         p = 1
         while len(_r) < max_results:
@@ -280,10 +289,10 @@ class BilibiliScraper(BaseScraper):
                 resp = await self._client.get(self._space_url, params=params)
                 resp.raise_for_status()
                 data = resp.json()
-            except Exception:
-                break
+            except Exception as exc:
+                raise ScraperError("Bilibili author request failed") from exc
             if data.get("code") != 0:
-                break
+                raise ScraperError(f"Bilibili API error {data.get('code')}: {data.get('message', '')}")
             vl = data.get("data", {}).get("list", {}).get("vlist", [])
             if not vl:
                 break
@@ -316,6 +325,13 @@ class BilibiliScraper(BaseScraper):
         return selector.apply(result.videos)
 
     async def _resolve_mid(self, author: str) -> int | None:
+        normalized = author.strip().rstrip("/")
+        if normalized.isdigit():
+            return int(normalized)
+        if "space.bilibili.com/" in normalized:
+            candidate = normalized.rsplit("/", 1)[-1].split("?", 1)[0]
+            if candidate.isdigit():
+                return int(candidate)
         params = {"search_type": "bili_user", "keyword": author, "page": 1}
         try:
             resp = await self._client.get(self._search_url, params=params)
@@ -324,8 +340,6 @@ class BilibiliScraper(BaseScraper):
                 for u in data.get("data", {}).get("result", []):
                     if u.get("uname") == author:
                         return int(u["mid"])
-                if data.get("data", {}).get("result"):
-                    return int(data["data"]["result"][0].get("mid", 0))
         except Exception:
             pass
         return None

@@ -1,242 +1,128 @@
-# video-analysis — 通用视频搜索、转录与 LLM 分析框架
+# video-analysis — Skill + MCP
 
-从 Bilibili、YouTube、抖音等平台搜索视频、转录字幕，通过系统已安装的 Claude/Codex CLI 进行通用内容分析。股票分析只是内置的一个可选 skill。
+通过对话处理 Bilibili、YouTube、抖音视频：搜索、多个作者更新、关注列表、
+批量下载、转录、分析及本地订阅。Web 前端和项目 CLI 已移除。
 
----
+## 安装服务
 
-## 🚀 快速开始
+需要 Python 3.10+。在仓库目录创建独立环境并安装：
 
-```bash
-# 安装依赖
-pip install -e ".[dev]"
-
-# 列出内置 skills
-python -m cli.main list-skills
-
-# 搜索视频
-python -m cli.main search -q "人工智能" -p bilibili -n 10
-
-# 搜索 + 转录 + 分析（全自动）
-python -m cli.main analyze -q "人工智能" -p "总结这些视频的核心观点" --skill video-analyzer
-
-# 直接用 claude CLI + skill
-python -m cli.main claude -i --skill video-analyzer
-
-# 用 codex 分析视频转录
-python -m cli.main codex -q "AI芯片" -p "总结对AI芯片市场的判断"
+```powershell
+python -m venv .venv
+.venv/Scripts/python -m pip install -e ".[dev]"
+.venv/Scripts/python -m playwright install chromium
 ```
 
-## ✨ 功能
+macOS/Linux 将 `.venv/Scripts/python` 换成 `.venv/bin/python`。
+Whisper 本地转录另需 `pip install -e ".[transcription]"` 和系统 ffmpeg。
+默认模型为 `base`，首次转录会下载模型。没有 ffmpeg 时可下载平台提供的
+完整单文件格式，部分高画质视频需要 ffmpeg 合并。
 
-- **多平台搜索**：Bilibili、YouTube、抖音
-- **自动缓存**：搜索和视频转录本地缓存，避免重复
-- **视频转录**：YouTube 字幕解析 + 本地 Whisper 模型
-- **Rule 筛选系统**：按播放量、作者、日期、关键词组合筛选
-- **Claude / Codex CLI 集成**：直接调用系统已安装的 Claude/Codex CLI，支持 `--skill`
-- **项目内置 Skills**：`config/skills/` 下的 skill 可被 Claude CLI 直接识别
+## 连接 MCP 与 Skill
 
-## 📁 项目结构
+仓库包含 `.codex-plugin/plugin.json`、`.mcp.json` 和 `skills/video-analysis/`。
+插件清单已按本机 Codex 的插件校验器验证。`.mcp.json` 使用
+`video-analysis-mcp` 命令，因此插件模式需要该入口在 Codex 的 PATH 中。
+可通过 `pipx install .` 安装独立入口，再在 Codex 本地插件流程中添加本仓库。
+仓库没有发布到公共市场；安装 Python 包本身不会自动注册 Codex 插件。
 
-```
-video-analysis/
-├── cli/                          # CLI 入口
-│   ├── main.py                   # 命令: search / analyze / claude / codex / list-skills
-│   └── __init__.py
-├── models/                       # Pydantic 数据模型
-│   ├── video.py                  # VideoMetadata, VideoStats
-│   ├── transcript.py             # TranscriptSegment, VideoTranscript
-│   ├── search.py                 # SearchQuery, SearchResult
-│   ├── analysis.py               # AnalysisRequest, AnalysisResult
-│   ├── cache.py                  # CacheEntry, CacheStatus
-│   ├── rules.py                  # Rule 筛选系统 (FieldCompare/AuthorIn/KeywordInTitle/DateRange/Sort/And/Or)
-│   └── __init__.py
-├── scrapers/                     # 视频爬虫
-│   ├── base.py                   # BaseScraper (抽象基类)
-│   ├── bilibili.py               # BilibiliScraper
-│   ├── youtube.py                # YouTubeScraper (Data API v3)
-│   ├── douyin.py                 # DouyinScraper
-│   └── __init__.py
-├── transcribers/                 # 视频转录
-│   ├── base.py                   # BaseTranscriber (抽象基类)
-│   ├── subtitle_parser.py        # SubtitleParser (YouTube 字幕)
-│   ├── whisper_client.py         # WhisperClient (本地 Whisper 模型)
-│   └── __init__.py
-├── analyzers/                    # LLM 分析 (调用系统 CLI)
-│   ├── base.py                   # BaseAnalyzer (抽象基类)
-│   ├── claude_client.py          # ClaudeAnalyzer (调用 claude CLI)
-│   ├── codex_client.py           # CodexAnalyzer (调用 codex CLI)
-│   └── __init__.py
-├── cache/                        # 缓存管理
-│   ├── base.py                   # BaseCache (抽象基类)
-│   ├── manager.py                # DiskCache (JSON 文件缓存)
-│   └── __init__.py
-├── core/                         # 调度编排
-│   ├── scheduler.py              # 并发控制 + 限频
-│   ├── orchestrator.py           # 搜索→缓存→转录→分析全流程
-│   └── __init__.py
-├── config/                       # 配置与技能
-│   ├── settings.py               # Pydantic 配置加载
-│   ├── settings.yaml             # 全局配置 (需自行创建)
-│   ├── prompts/                  # LLM 提示词模板
-│   │   ├── analysis.md           # 视频分析 prompt 模板
-│   │   └── summary.md            # 摘要 prompt 模板
-│   └── skills/                   # Claude 兼容 Skills
-│       ├── stock-analyst/        # 股票/财经视频分析
-│       │   └── SKILL.md
-│       ├── video-analyzer/       # 通用视频内容分析
-│       │   └── SKILL.md
-│       └── research-assistant/   # 研究助理
-│           └── SKILL.md
-├── exceptions.py                 # 领域异常定义
-├── pyproject.toml                # 项目依赖与配置
-├── README.md                     # 本文件
-├── DEV_PLAN.md                   # 开发计划
-└── CLAUDE.md                     # Claude 分析指导
+直接连接本地开发环境时，在 Codex MCP 配置中使用绝对 Python 路径：
+
+```toml
+[mcp_servers.video_analysis]
+command = "C:/path/to/video_analysis/.venv/Scripts/python.exe"
+args = ["-m", "mcp_server.server"]
 ```
 
-## 💻 命令参考
+然后将 `skills/video-analysis` 目录放入客户端支持的 Skill 目录，或通过
+本仓库插件加载它。[官方 MCP 配置说明](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
+配置命令路径需替换成你的实际位置；不依赖 Codex 的当前工作目录。
 
-### `search` — 搜索视频
+## 登录与各平台限制
 
-```bash
-python -m cli.main search -q "关键词" \
-  -p bilibili \           # bilibili | youtube | douyin
-  -n 10 \                 # 最大结果数
-  -a "作者名" \           # 限定作者
-  --min-views 1000 \      # 最低播放量
-  --sort views \          # relevance | publish_time | views
-  --date-from 2025-01-01 \
-  --date-to 2025-06-01 \
-  --transcribe \          # 同时转录
-  -o result.json          # 输出到文件
+公开视频先尝试匿名访问，**不是所有视频都必须登录**。
+收到 `auth_required` 后调用 `start_platform_login`，在专用 Chromium
+窗口扫码/密码登录，再调用 `wait_for_platform_login`（每次最多 45 秒）。
+无需复制 Cookie。Bilibili 会查询接口确认登录；YouTube 检查登录后的账号按钮；
+如果 Playwright Chromium 尚未安装，服务会尝试使用本机 Chrome/Edge 程序，
+但仍创建独立配置目录，不读取日常浏览器的登录状态。
+抖音仅能检测会话 Cookie，明确标记 `session_detected`，仍需通过实际操作验证。
+Google 可能拒绝自动化浏览器登录；平台限流、验证或区域限制也可能在登录后继续存在。
+可调用 `validate_platform_cookies` 做本地和平台接口双重检查，不会返回 Cookie 值。
+
+YouTube 登录如果弹出 Windows Hello/通行密钥错误，选择“取消”后使用“试试其他方式”、
+密码或手机验证。独立浏览器不能读取日常 Edge/Chrome 配置中的 Passkey；个人浏览器里的
+登录状态也不会自动共享给 MCP。若必须复用现有会话，应显式导出受支持的 Cookie 文件并
+通过受控导入流程验证，不要把 Cookie 粘贴到聊天或提交到仓库。
+
+| 功能 | Bilibili | YouTube | 抖音 |
+| --- | --- | --- | --- |
+| 搜索、下载 | API/yt-dlp，完整 MP4 直连回退 | yt-dlp，受地区/验证及运行时影响 | Cookie 实验支持，受签名/验证影响 |
+| 作者最新视频 | UID/主页链接 | 频道链接、@handle 或 UC ID；频道 videos 页 | sec_uid/主页链接 |
+| 登录后关注 | 关注 API，分页 | 订阅页面可见频道，实验性 | 关注动态中可见作者，实验性 |
+
+实验结果返回 `best_effort=true`、`complete=false`；不能当作完整关注名单。
+YouTube 作者显示名可能重名，因此不再用 `from:名字` 猜测频道。
+
+抖音关注页目前是页面可见内容的滚动抓取，不是完整的游标分页接口。抖音关键词搜索的
+网页接口还可能返回 `invalid_app`/`params_check`（动态设备参数和签名缺失），即使 Cookie
+已验证也可能没有结果。遇到这种情况不能把空列表当作“搜索成功”；请改用浏览器内搜索
+回退，或直接提供视频 URL 进行下载。
+
+## 批量与分析流程
+
+1. `search_videos` / `get_latest_videos` 获取元数据。每位作者 1–50 条、最多 100 位作者；超过三位作者返回后台任务 ID。
+   查询缓存有效期为一小时，要求即时更新时传 `refresh=true`；登录状态变化会隔离缓存。
+2. `batch_download` 接受 1–500 个 `{platform,url}`，立即返回 `job_id`。
+   `get_job(wait_seconds=30)` 查询进度。默认每批并发 3，每个平台也最多 3。
+   每个条目独立记录结果；只有实际生成非空媒体文件才算成功。
+3. `batch_transcribe` 接受完整视频元数据，优先字幕，空字幕/失败时使用 Whisper。
+   任务结果返回可重复使用的转录 artifact ID。
+4. `analyze_videos(artifacts, user_query)` 默认准备当前助手分析。
+   助手用 `read_artifact` 分页读取原文、形成结论，再通过 `save_analysis` 保存。
+   这不需要额外 API Key。显式选择 `codex`/`claude` 才会调用另行安装的外部分析器。
+
+`get_job` 的 `running` 不是成功；`partial` 表示部分失败。服务重启后的未完成任务
+标记为 `interrupted`。可以重新提交失败项，已有媒体文件和转录缓存会复用。
+任务不在 MCP 客户端退出后继续后台运行，也不会自动创建定时订阅任务。
+
+其他工具：`manage_subscriptions`、`manage_domain`（创建/查询/更新/发现/监控/复盘）、
+`list_artifacts`、`read_artifact`、`get_overview`、`query_logs`、`get_system_status`。
+领域 monitor 返回视频，后续下载/转录由批量工具执行；review 返回本地证据供助手分析。
+
+## 本地数据
+
+默认使用操作系统用户数据目录下的 `video-analysis`。可通过 MCP 的环境变量
+`VIDEO_ANALYSIS_DATA_DIR`、`VIDEO_ANALYSIS_STATE_DIR` 指定路径。
+`.env.example` 是变量说明，服务不会自动读取仓库 `.env`。
+
+登录资料存放在 state 目录，与可读取的 artifacts 隔离；不要共享 state 目录。
+每次下载使用独立 Cookie 文件，避免并发覆盖或跨平台发送 Cookie。
+`logout_platform` 会删除该平台专用浏览器配置和所有托管 Cookie，需要先等待活动任务结束。
+
+旧数据可通过 `migrate_legacy_data(directory="旧 data 的绝对路径")` 复制 Cookie、
+管道转录和结果；原文件不删除，不覆盖新文件。旧的领域配置/订阅可以通过
+`manage_domain`、`manage_subscriptions` 明确导入，避免覆盖当前列表。
+
+## 验证
+
+```powershell
+.venv/Scripts/python -m pytest -q
+.venv/Scripts/python -m pip check
+.venv/Scripts/python -m pip wheel . --no-deps -w dist
 ```
 
-### `analyze` — 搜索 + 转录 + 分析
+自动测试使用临时目录、模拟平台响应，包含真实 MCP STDIO 连接和 60 项批量测试，
+不调用账号、浏览器登录或真实下载。真实下载验收单独执行：
 
-```bash
-python -m cli.main analyze \
-  -q "AI 芯片" \
-  -p "这些视频对 AI 芯片市场前景怎么看？" \
-  -p bilibili \
-  -n 5 \
-  --skill video-analyzer \   # 使用内置 skill
-  -o analysis.md
+```powershell
+.venv/Scripts/python scripts/live_smoke.py bilibili "https://www.bilibili.com/video/你的BV号"
 ```
 
-### `claude` — 直接调用系统 Claude CLI
+此脚本使用隔离的匿名会话；登录后验收请使用 MCP 工具。测试结论必须区分本地
+逻辑通过与平台实际下载成功，不能以工具注册成功代替业务验收。
 
-```bash
-# 单次 prompt
-python -m cli.main claude -p "帮我总结以下视频观点..."
-
-# 搜索视频 + 自动转录 + 传给 claude
-python -m cli.main claude \
-  -q "人工智能" \
-  -p "总结这些视频的核心观点" \
-  --skill video-analyzer
-
-# 交互模式
-python -m cli.main claude -i --skill video-analyzer
-```
-
-### `codex` — 直接调用系统 Codex CLI
-
-```bash
-# 单次 prompt
-python -m cli.main codex -p "总结一下..."
-
-# 搜索视频 + 自动转录 + 传给 codex
-python -m cli.main codex \
-  -q "市场分析" \
-  -p "总结观点"
-```
-
-### `list-skills` — 列出内置 Skills
-
-```bash
-python -m cli.main list-skills
-```
-
-## 🧩 Skills
-
-项目内置 Claude 兼容 Skills，位于 `config/skills/`：
-
-| Skill | 用途 |
-|-------|------|
-| `stock-analyst` | 股票/财经视频分析，提取市场观点和投资洞察 |
-| `video-analyzer` | 通用视频内容分析，提取洞察、对比观点 |
-| `research-assistant` | 研究助理，多角度信息梳理和分析 |
-
-Claude CLI 使用时自动从项目内加载：
-```bash
-claude --skill config/skills/stock-analyst/SKILL.md
-```
-
-## 📋 依赖
-
-| 依赖 | 用途 |
-|------|------|
-| `pydantic>=2.0` | 数据模型 |
-| `pyyaml>=6.0` | 配置解析 |
-| `httpx>=0.27` | 网络请求 |
-| **可选**: `openai-whisper` | 本地语音转录 |
-| **可选**: `yt-dlp` | YouTube 音频下载 |
-| **必须**: `claude` CLI | 系统已安装的 Claude CLI |
-| **可选**: `codex` CLI | 系统已安装的 Codex CLI |
-
-## 🔧 配置
-
-复制 `settings.yaml` 模板后修改：
-
-```bash
-cp config/settings.yaml.template config/settings.yaml
-```
-
-```yaml
-cache:
-  storage_dir: cache/storage
-  video_ttl_hours: 72
-  query_ttl_hours: 24
-
-scraper:
-  max_concurrency: 3
-  request_delay_seconds: 1.0
-
-transcriber:
-  whisper_model: whisper-large-v3
-  device: cpu
-  language: zh
-
-analyzer:
-  claude_api_key: ""
-  codex_api_key: ""
-  default_model: claude
-```
-
-## 📝 Prompt 模板
-
-项目内 `config/prompts/` 提供分析提示词模板，可在 `settings.yaml` 中配置路径：
-
-```yaml
-prompt_templates:
-  analysis: config/prompts/analysis.md
-  summary: config/prompts/summary.md
-```
-
-## 🧪 开发
-
-```bash
-# 安装开发依赖
-pip install -e ".[dev]"
-
-# 运行测试
-pytest tests/
-
-# 外部集成测试（无 Docker，自动填充/清理数据）
-python tests/run_external.py              # 完整集成（数据层 + ToolRegistry + Web 路由）
-python tests/run_external.py --no-web     # 跳过 Web 路由测试
-python tests/run_external.py --fresh      # 从空数据开始
-
-# 类型检查
-mypy .
-```
+最近一次真实验收：Bilibili 登录、Cookie 验证和关注列表读取成功；抖音登录、Cookie
+验证和关注页可见作者读取成功，但关键词搜索返回 `invalid_app`，因此未伪造搜索结果或
+继续下载。YouTube 的公共视频下载仍受地区、验证和 yt-dlp 可用性影响；Google 登录的
+Passkey 错误属于浏览器账号验证限制，不代表 Cookie 验证接口失败。

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "video_analysis"
 version = "0.1.0"
@@ -8,11 +12,13 @@ dependencies = [
     "pyyaml>=6.0",
     "httpx>=0.27",
     "yt-dlp>=2024.0.0",
-    "bilibili-api>=9.0.0",
+    "mcp>=1.30,<2",
+    "platformdirs>=4.0",
+    "playwright>=1.45",
 ]
 
 [project.scripts]
-analyze-video = "cli.main:main"
+video-analysis-mcp = "mcp_server.server:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -23,7 +29,17 @@ asyncio_mode = "auto"
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
-    "litestar[testing]>=2.0",
     "mypy>=1.0",
 ]
 douyin = ["dy-cli"]
+transcription = ["openai-whisper>=20240930"]
+
+[tool.setuptools]
+py-modules = ["exceptions", "data_manager"]
+
+[tool.setuptools.packages.find]
+include = ["mcp_server*", "data", "models*", "scrapers*", "transcribers*", "analyzers*", "core*", "engine*", "tools*", "utils*", "cache", "config", "log"]
+namespaces = false
+
+[tool.setuptools.package-data]
+config = ["*.yaml", "skills/*/*.md", "domains/*/*.md", "domains/*/*.yaml"]

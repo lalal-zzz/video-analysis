@@ -22,7 +22,7 @@ class ScraperConfig(BaseModel):
 
 
 class TranscriberConfig(BaseModel):
-    whisper_model: str = "whisper-large-v3"
+    whisper_model: str = "base"
     device: str = "cpu"
     language: str = "zh"
 

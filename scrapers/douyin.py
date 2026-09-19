@@ -24,7 +24,7 @@ COOKIE_FILE = Path("data") / "douyin_cookies.json"
 class DouyinScraper(BaseScraper):
     platform = "douyin"
 
-    def __init__(self, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(self, client: httpx.AsyncClient | None = None, *, load_cookies: bool = True) -> None:
         self._client = client or httpx.AsyncClient(
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
@@ -35,7 +35,8 @@ class DouyinScraper(BaseScraper):
         self._search_url = "https://www.douyin.com/aweme/v1/web/search/item/"
         self._detail_url = "https://www.douyin.com/aweme/v1/web/aweme/detail/"
         self._post_url = "https://www.douyin.com/aweme/v1/web/aweme/post/"
-        self._load_cookies()
+        if load_cookies:
+            self._load_cookies()
 
     # ── Cookie 管理 ────────────────────────────────────────
 
@@ -172,8 +173,7 @@ class DouyinScraper(BaseScraper):
                         total_available=extra.get("total_count", len(videos)),
                     )
                 elif data.get("status_code") == 2483:
-                    logger.warning("[Douyin] 需要登录，运行 analyze-stock login douyin")
-                    return SearchResult(query=query, videos=[], total_available=0)
+                    raise ScraperError("Douyin login required")
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code in (412, 429) and attempt < 2:
@@ -193,7 +193,7 @@ class DouyinScraper(BaseScraper):
     async def fetch_author_videos(self, author: str, max_results: int = 50) -> list[VideoMetadata]:
         sec_uid = await self._resolve_sec_uid(author)
         if sec_uid is None:
-            return []
+            raise ScraperError("Author not resolved; use the exact Douyin profile URL")
 
         _results: list[VideoMetadata] = []
         offset = 0
@@ -202,7 +202,7 @@ class DouyinScraper(BaseScraper):
         while len(_results) < max_results:
             params = {
                 "sec_user_id": sec_uid,
-                "offset": offset,
+                "max_cursor": offset,
                 "count": page_size,
                 "source": 1,
             }
@@ -214,6 +214,8 @@ class DouyinScraper(BaseScraper):
                 raise ScraperError(f"Douyin author fetch failed: {e}") from e
 
             aweme_list = data.get("aweme_list", [])
+            if data.get("status_code") != 0:
+                raise ScraperError(f"Douyin API error {data.get('status_code')}")
             if not aweme_list:
                 break
 
@@ -223,7 +225,10 @@ class DouyinScraper(BaseScraper):
                     _results.append(video)
                     if len(_results) >= max_results:
                         break
-            offset += len(aweme_list)
+            next_cursor = data.get("max_cursor")
+            if not data.get("has_more") or next_cursor is None or next_cursor == offset:
+                break
+            offset = next_cursor
 
         return _results
 
@@ -233,6 +238,12 @@ class DouyinScraper(BaseScraper):
     # ── 辅助方法 ───────────────────────────────────────────
 
     async def _resolve_sec_uid(self, author: str) -> str | None:
+        from urllib.parse import urlparse
+        parsed = urlparse(author)
+        if parsed.hostname in {"www.douyin.com", "douyin.com"} and parsed.path.startswith("/user/"):
+            return parsed.path.split("/user/", 1)[1].strip("/")
+        if author.startswith("MS4w"):
+            return author
         params = {
             "keyword": author,
             "search_type": "user",
@@ -247,8 +258,6 @@ class DouyinScraper(BaseScraper):
                 user_info = item.get("user_info", {})
                 if user_info.get("nickname") == author:
                     return user_info.get("sec_uid")
-            if user_list:
-                return user_list[0].get("user_info", {}).get("sec_uid")
         except Exception:
             pass
         return None
@@ -281,7 +290,7 @@ class DouyinScraper(BaseScraper):
             author=author_info.get("nickname", ""),
             author_url=f"https://www.douyin.com/user/{author_info.get('sec_uid', '')}",
             url=f"https://www.douyin.com/video/{aweme_id}",
-            duration=video_info.get("duration", 0),
+            duration=video_info.get("duration", 0) / 1000,
             thumbnail_url=thumbnail_url,
             stats=VideoStats(
                 views=int(stats.get("play_count", 0)),

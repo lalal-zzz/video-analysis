@@ -1,96 +1,42 @@
-"""Integration tests for data layer and domain engine."""
-import pytest
-from pathlib import Path
-from data_manager import DataManager
-from engine.domain_manager import DomainManager
+"""Data regressions use temporary storage, never real accounts or tracked fixtures."""
+from data.manager import DataManager
+from models import VideoMetadata, VideoTranscript
 from tools import ToolRegistry
 
 
-@pytest.fixture
-def dm():
-    return DataManager()
+def test_subscriptions_round_trip(tmp_path):
+    dm = DataManager(tmp_path)
+    rows = [{"author": {"name": "creator", "platform": "bilibili", "url": "https://space.bilibili.com/1"}}]
+    dm.save_subscriptions("test", rows)
+    assert dm.load_subscriptions("test") == rows
+    assert dm.load_subscriptions("absent") == []
 
 
-def test_data_manager_load_subscriptions(dm):
-    subs = dm.load_subscriptions("stock")
-    assert len(subs) > 0
-    for s in subs:
-        assert "author" in s
-        assert isinstance(s["author"], dict)
-        assert "platform" in s["author"]
-        assert "url" in s["author"]
+def test_blacklist_round_trip_and_remove(tmp_path):
+    dm = DataManager(tmp_path)
+    rows = [{"author": {"name": "creator"}}]
+    dm.save_blacklist("test", rows)
+    assert dm.load_blacklist("test") == rows
+    assert dm.unblacklist_author("test", "creator")
+    assert dm.load_blacklist("test") == []
 
 
-def test_data_manager_load_blacklist(dm):
-    bl = dm.load_blacklist("stock")
-    assert isinstance(bl, list)
+def test_domain_transcripts_and_analysis(tmp_path):
+    dm = DataManager(tmp_path)
+    dm.save_transcript_text("test", "creator", "v1", "transcript")
+    assert dm.load_transcript_text("test", "creator", "v1") == "transcript"
+    assert dm.list_transcript_count(domain="test") == 1
+    dm.save_analysis_summary("test", "creator", {"title": "sample", "score_contribution": 0.1})
+    assert dm.list_analyses("test")[0]["title"] == "sample"
 
 
-def test_data_manager_list_analyses(dm):
-    analyses = dm.list_analyses("stock")
-    assert len(analyses) >= 10
-    for a in analyses[:3]:
-        assert "title" in a
-        assert "author" in a
-        assert "score_contribution" in a
+def test_pipeline_transcript_preserves_metadata(tmp_path):
+    dm = DataManager(tmp_path)
+    video = VideoMetadata(platform="youtube", video_id="v1", title="sample", author="creator", url="https://www.youtube.com/watch?v=v1")
+    path = dm.save_transcript(VideoTranscript(video=video, full_text="words", source="subtitle"))
+    assert "words" in path.read_text(encoding="utf-8")
+    assert path in dm.list_pipeline_transcripts(platform="youtube")
 
 
-def test_data_manager_list_transcripts(dm):
-    transcripts = dm.list_transcripts("stock")
-    assert len(transcripts) > 0
-    for t in transcripts:
-        assert "author" in t
-        assert "video_id" in t
-
-
-def test_data_manager_count_analyses_recent(dm):
-    count = dm.count_analyses_recent(days=30, domain="stock")
-    assert count >= 0
-
-
-def test_data_manager_list_transcript_count(dm):
-    count = dm.list_transcript_count(domain="stock")
-    assert count > 0
-
-
-def test_tool_registry_list(dm):
-    tools = ToolRegistry.list_all()
-    assert len(tools) >= 14
-
-
-def test_tool_registry_get_stock_data(dm):
-    result = ToolRegistry.call("get_stock_data", symbol="600519")
-    assert result is not None
-
-
-def test_tool_registry_get_market_sentiment(dm):
-    result = ToolRegistry.call("get_market_sentiment")
-    assert result is not None
-
-
-def test_tool_registry_get_domain_trends(dm):
-    result = ToolRegistry.call("get_domain_trends", domain="stock")
-    assert result is not None
-    assert "top_keywords" in result
-
-
-def test_domain_manager_discover(dm):
-    mgr = DomainManager()
-    result = mgr.run("stock", "discover")
-    assert result["status"] == "ok"
-    assert result["action"] == "discover"
-
-
-def test_domain_manager_monitor(dm):
-    mgr = DomainManager()
-    result = mgr.run("stock", "monitor")
-    assert result["status"] == "ok"
-    assert "monitored" in result
-
-
-def test_domain_manager_review(dm):
-    mgr = DomainManager()
-    result = mgr.run("stock", "review")
-    assert result["status"] == "ok"
-    assert "prompt" in result
-    assert len(result["prompt"]) > 100
+def test_tool_registry_has_core_tools():
+    assert {"search_videos", "get_author_latest_videos", "transcribe_video"} <= set(ToolRegistry.list_all())
