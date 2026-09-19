@@ -1,6 +1,6 @@
-# analyze-stock — 视频搜索、转录、LLM 分析框架
+# video-analysis — 通用视频搜索、转录与 LLM 分析框架
 
-从 Bilibili、YouTube、抖音等平台搜索视频、转录字幕，通过系统已安装的 Claude/Codex CLI 进行深度分析。
+从 Bilibili、YouTube、抖音等平台搜索视频、转录字幕，通过系统已安装的 Claude/Codex CLI 进行通用内容分析。股票分析只是内置的一个可选 skill。
 
 ---
 
@@ -14,13 +14,13 @@ pip install -e ".[dev]"
 python -m cli.main list-skills
 
 # 搜索视频
-python -m cli.main search -q "特斯拉股票" -p bilibili -n 10
+python -m cli.main search -q "人工智能" -p bilibili -n 10
 
 # 搜索 + 转录 + 分析（全自动）
-python -m cli.main analyze -q "白酒板块" -p "分析这些视频的投资观点" --skill stock-analyst
+python -m cli.main analyze -q "人工智能" -p "总结这些视频的核心观点" --skill video-analyzer
 
 # 直接用 claude CLI + skill
-python -m cli.main claude -i --skill stock-analyst
+python -m cli.main claude -i --skill video-analyzer
 
 # 用 codex 分析视频转录
 python -m cli.main codex -q "AI芯片" -p "总结对AI芯片市场的判断"
@@ -38,7 +38,7 @@ python -m cli.main codex -q "AI芯片" -p "总结对AI芯片市场的判断"
 ## 📁 项目结构
 
 ```
-analyze_stock_-master/
+video-analysis/
 ├── cli/                          # CLI 入口
 │   ├── main.py                   # 命令: search / analyze / claude / codex / list-skills
 │   └── __init__.py
@@ -119,7 +119,7 @@ python -m cli.main analyze \
   -p "这些视频对 AI 芯片市场前景怎么看？" \
   -p bilibili \
   -n 5 \
-  --skill stock-analyst \    # 使用内置 skill
+  --skill video-analyzer \   # 使用内置 skill
   -o analysis.md
 ```
 
@@ -131,12 +131,12 @@ python -m cli.main claude -p "帮我总结以下视频观点..."
 
 # 搜索视频 + 自动转录 + 传给 claude
 python -m cli.main claude \
-  -q "特斯拉股票" \
-  -p "分析这些视频的投资观点" \
-  --skill stock-analyst
+  -q "人工智能" \
+  -p "总结这些视频的核心观点" \
+  --skill video-analyzer
 
 # 交互模式
-python -m cli.main claude -i --skill stock-analyst
+python -m cli.main claude -i --skill video-analyzer
 ```
 
 ### `codex` — 直接调用系统 Codex CLI
