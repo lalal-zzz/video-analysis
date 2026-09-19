@@ -1,12 +1,12 @@
 """
-analyze-stock CLI — 视频搜索 + 转录 + LLM 分析管道
+analyze-video CLI — 视频搜索 + 转录 + LLM 分析管道
 
 用法:
-  analyze-stock search --query "关键词" --platform bilibili --max-videos 5
-  analyze-stock analyze --query "股票" --prompt "这只股票怎么样？" --skill stock-analyst
-  analyze-stock claude --skill stock-analyst -p "分析"
-  analyze-stock claude -i --skill stock-analyst     # 交互模式
-  analyze-stock codex -p "总结以下"
+  analyze-video search --query "关键词" --platform bilibili --max-videos 5
+  analyze-video analyze --query "人工智能" --prompt "总结这些视频的核心观点" --skill video-analyzer
+  analyze-video claude --skill video-analyzer -p "分析"
+  analyze-video claude -i --skill video-analyzer     # 交互模式
+  analyze-video codex -p "总结以下视频"
 """
 
 import asyncio
@@ -512,7 +512,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="analyze-stock — 视频搜索、转录、LLM 分析管道",
+        description="analyze-video — 视频搜索、转录、LLM 分析管道",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: analyze-stock
+    container_name: video-analysis
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-8080}:8080"
