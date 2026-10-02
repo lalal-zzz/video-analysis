@@ -26,6 +26,7 @@ from .domain import (
     BlacklistEntry,
     ToolCallRecord,
 )
+from .creator_research import CreatorWatchlist, FixedCreator
 
 __all__ = [
     "LogEntry",
@@ -56,4 +57,6 @@ __all__ = [
     "Subscription",
     "BlacklistEntry",
     "ToolCallRecord",
+    "FixedCreator",
+    "CreatorWatchlist",
 ]

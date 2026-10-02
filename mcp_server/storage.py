@@ -61,11 +61,13 @@ class Paths:
 def failure(exc: Exception, platform: str = "") -> dict[str, Any]:
     """Expose categories, never raw downloader exceptions (which can contain tokens)."""
     message = str(exc).lower()
-    if any(x in message for x in ("unavailable", "not available", "removed", "deleted", "不存在")):
+    if any(x in message for x in ("anonymous search may be restricted", "invalid_app", "params_check", "no usable results")):
+        status, code, text = "error", "search_restricted", "平台关键词接口被动态签名或风控拦截；即使已有登录会话也可能失败。当前可行的技术路径是：使用博主主页 URL；改用具备动态签名的浏览器/API 搜索后端；或接入第三方公开数据服务。"
+    elif any(x in message for x in ("unavailable", "not available", "removed", "deleted", "不存在")):
         status, code, text = "error", "video_unavailable", "该视频不存在、已下架或在当前地区不可用；请使用可播放的链接。"
     elif any(x in message for x in ("login", "log in", "sign in", "cookies", "登录", "401")):
         status, code, text = "auth_required", "authentication_required", "需要登录或刷新会话；调用 start_platform_login，完成后重试。"
-    elif any(x in message for x in ("429", "412", "403", "captcha", "rate limit", "风控")):
+    elif any(x in message for x in ("429", "412", "403", "captcha", "rate limit", "风控", "api error -799", "请求过于频繁", "请求频率")):
         status, code, text = "error", "platform_restricted", "平台限流或验证拦截；请稍后重试。登录不保证能解除限制。"
     elif isinstance(exc, (ValueError, TypeError)):
         status, code, text = "error", "invalid_input", "参数无效；检查平台、链接、标识符或工具参数。"
@@ -79,7 +81,14 @@ def failure(exc: Exception, platform: str = "") -> dict[str, Any]:
         status, code, text = "error", "timeout", "操作超时，可重试失败的条目。"
     else:
         status, code, text = "error", "operation_failed", "操作未完成；请检查网络、平台可用性与依赖。"
-    return {"status": status, "code": code, "message": text, **({"platform": platform} if platform else {})}
+    result = {"status": status, "code": code, "message": text}
+    if code == "search_restricted":
+        result["solutions"] = [
+            "使用博主主页 URL 获取最新视频，不依赖关键词搜索",
+            "接入 dy-cli/MediaCrawler 一类的动态签名搜索后端",
+            "接入 HasData 等公开数据服务后再把结果提交给 batch_download 或 batch_transcribe",
+        ]
+    return {**result, **({"platform": platform} if platform else {})}
 
 
 def batch_result(results: list[dict[str, Any]]) -> dict[str, Any]:

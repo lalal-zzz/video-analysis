@@ -225,6 +225,32 @@ class BrowserAuth:
             self.store.clear(platform)
         return {"status": "ok", "platform": platform}
 
+    async def refresh_for_download(self, platform: str, url: str) -> bool:
+        """Refresh platform cookies in the isolated managed browser profile.
+
+        Some platforms require short-lived browser cookies even when the
+        account session itself is still valid.  The downloader can call this
+        before yt-dlp so it never has to read the user's everyday browser.
+        """
+        platform_name(platform)
+        if platform not in {"douyin", "youtube"}:
+            return False
+        async with self.locks[platform]:
+            context = await self.context(platform, headless=True)
+            stored = self.store.read(platform)
+            if stored:
+                await context.add_cookies(stored)
+            page = await context.new_page()
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                await page.wait_for_timeout(1500)
+                cookies = await context.cookies()
+                if cookies:
+                    self.store.save(platform, cookies)
+                return bool(cookies)
+            finally:
+                await page.close()
+
     async def following(self, platform: str, limit: int) -> dict[str, Any]:
         """DOM fallback deliberately reports incomplete coverage; no guessed authors."""
         if not self.has_session(platform, self.store.read(platform)):

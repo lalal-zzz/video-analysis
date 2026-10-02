@@ -166,6 +166,15 @@ class DouyinScraper(BaseScraper):
                         if video is not None:
                             videos.append(video)
 
+                    if not videos:
+                        # A successful HTTP response with an empty payload is
+                        # not proof that the query has no matches.  Douyin
+                        # commonly returns this shape when anonymous search is
+                        # blocked by a dynamic signature/device check.
+                        raise ScraperError(
+                            "Douyin search returned no usable results; anonymous search may be restricted"
+                        )
+
                     extra = data.get("extra", {}) or {}
                     return SearchResult(
                         query=query,

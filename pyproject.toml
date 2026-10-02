@@ -5,7 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "video_analysis"
 version = "0.1.0"
-description = "Video scraping, transcription, and LLM analysis framework"
+description = "MCP server and Agent Skill for Bilibili, YouTube and Douyin video downloading, transcription and creator analysis"
+readme = "README.md"
+keywords = ["mcp", "agent-skills", "video-analysis", "video-downloader", "video-transcription", "bilibili", "youtube", "douyin", "whisper", "creator-research"]
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",

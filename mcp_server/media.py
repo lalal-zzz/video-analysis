@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 from urllib.parse import urlparse
 
 from mcp_server.auth import CookieStore
@@ -39,15 +39,14 @@ class QuietLogger:
 
 
 class MediaDownloader:
-    def __init__(self, store: CookieStore) -> None:
+    def __init__(self, store: CookieStore, session_refresh: Callable[[str, str], Awaitable[bool]] | None = None) -> None:
         self.store = store
+        self.session_refresh = session_refresh
         self.limits = {p: asyncio.Semaphore(3) for p in HOSTS}
         self.locks: dict[str, asyncio.Lock] = {}
 
-    def _download(self, platform: str, url: str, directory: Path, audio: bool) -> dict[str, Any]:
-        import yt_dlp
-
-        directory.mkdir(parents=True, exist_ok=True)
+    @staticmethod
+    def _cached_download(directory: Path) -> dict[str, Any] | None:
         index = directory / "download.json"
         if index.exists():
             try:
@@ -57,6 +56,16 @@ class MediaDownloader:
                 cached, files = {}, []
             if files and all(p.is_relative_to(directory) and p.is_file() and p.stat().st_size > 0 for p in files):
                 return {**cached, "cached": True}
+        return None
+
+    def _download(self, platform: str, url: str, directory: Path, audio: bool) -> dict[str, Any]:
+        import yt_dlp
+
+        directory.mkdir(parents=True, exist_ok=True)
+        index = directory / "download.json"
+        cached = self._cached_download(directory)
+        if cached is not None:
+            return cached
         with tempfile.TemporaryDirectory(prefix="video-analysis-cookies-") as temporary:
             cookie = Path(temporary) / "cookies.txt"
             self.store.export(platform, cookie)
@@ -143,6 +152,27 @@ class MediaDownloader:
             directory = (output / platform / key).resolve()
             lock = self.locks.setdefault(str(directory), asyncio.Lock())
             async with lock, self.limits[platform]:
+                cached = self._cached_download(directory)
+                if cached is not None:
+                    return cached
+                if self.session_refresh is not None and platform in {"douyin", "youtube"}:
+                    try:
+                        await self.session_refresh(platform, url)
+                    except Exception:
+                        # yt-dlp still gets a chance with the last known jar;
+                        # refresh failure is reported only if the download fails.
+                        pass
+                # The public Bilibili playurl endpoint is a reliable low-
+                # resolution path with a verified session.  Try it first so
+                # yt-dlp's format probing cannot spend multiple retry windows
+                # before the known-good fallback is attempted.
+                if platform == "bilibili":
+                    try:
+                        direct = await asyncio.to_thread(self._bilibili_direct, url, directory)
+                        if direct.get("status") == "ok":
+                            return direct
+                    except Exception:
+                        pass
                 for attempt in range(2):
                     try:
                         # Shield the worker: do not release locks or close cookie state while it still runs.

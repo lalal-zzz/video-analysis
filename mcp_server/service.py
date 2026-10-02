@@ -23,6 +23,8 @@ from models.domain import DomainConfig, Subscription
 from mcp_server.auth import BrowserAuth, CookieStore
 from mcp_server.jobs import Jobs
 from mcp_server.media import MediaDownloader, QuietLogger, validate_url
+from mcp_server.frames import FrameExtractor
+from mcp_server.research import CreatorWatchlistStore
 from mcp_server.storage import Paths, atomic_json, atomic_text, batch_result, failure, identifier, platform_name, within
 
 
@@ -31,8 +33,10 @@ class VideoService:
         self.paths = paths or Paths()
         self.cookies = CookieStore(self.paths)
         self.auth = BrowserAuth(self.paths, self.cookies)
-        self.media = MediaDownloader(self.cookies)
+        self.media = MediaDownloader(self.cookies, session_refresh=self.auth.refresh_for_download)
         self.data = DataManager(self.paths.root)
+        self.watchlists = CreatorWatchlistStore(self.paths)
+        self.frames = FrameExtractor(self.paths.root, self.paths.artifacts)
         self.cache = DiskCache(Settings(cache=CacheConfig(storage_dir=str(self.paths.root / "cache"), query_ttl_hours=1)))
         self.jobs = Jobs(self.paths.root / "jobs")
         self.limits = {p: asyncio.Semaphore(3) for p in ("bilibili", "youtube", "douyin")}
@@ -52,13 +56,21 @@ class VideoService:
 
     def status(self) -> dict[str, Any]:
         return {"status": "ok", "platforms": {p: {"session_saved": self.auth.has_session(p, self.cookies.read(p)), "following": "api" if p == "bilibili" else "best_effort"} for p in self.limits},
-                "ffmpeg": bool(shutil.which("ffmpeg")), "whisper": importlib.util.find_spec("whisper") is not None,
+                "ffmpeg": bool(shutil.which("ffmpeg")), "deno": bool(shutil.which("deno")), "whisper": importlib.util.find_spec("whisper") is not None,
                 "codex": bool(shutil.which("codex")), "claude": bool(shutil.which("claude")),
                 "data_dir": str(self.paths.root), "active_jobs": len(self.jobs.tasks)}
 
+    def extract_frames(self, media_file: str, timestamps: list[float]) -> dict[str, Any]:
+        """Extract visual evidence at transcript timestamps from local media."""
+        try:
+            return self.frames.extract(media_file, timestamps)
+        except Exception as exc:
+            return failure(exc)
+
     @asynccontextmanager
     async def scraper(self, platform: str) -> AsyncIterator[Any]:
-        from scrapers import BilibiliScraper, DouyinScraper, YouTubeScraper
+        from scrapers import DouyinScraper, YouTubeScraper
+        from mcp_server.bilibili import BilibiliServiceScraper
         platform_name(platform)
         with tempfile.TemporaryDirectory(prefix="video-analysis-query-") as temporary:
             if platform == "youtube":
@@ -67,7 +79,7 @@ class VideoService:
                 self.cookies.export(platform, jar)
                 scraper._ydl_opts.update(cookiefile=str(jar), logger=QuietLogger(), socket_timeout=20, retries=1)
             else:
-                scraper = {"bilibili": BilibiliScraper, "douyin": DouyinScraper}[platform](load_cookies=False)
+                scraper = {"bilibili": BilibiliServiceScraper, "douyin": DouyinScraper}[platform](load_cookies=False)
                 for cookie in self.cookies.read(platform):
                     scraper._client.cookies.set(cookie["name"], cookie["value"], domain=cookie["domain"], path=cookie.get("path", "/"))
             try:
@@ -89,8 +101,13 @@ class VideoService:
         cached = await query_cache.get_query(query)
         if cached is not None and not refresh:
             return {"status": "ok", "videos": [v.model_dump(mode="json") for v in cached.videos], "cached": True}
-        async with self.limits[platform], self.scraper(platform) as scraper:
-            result = await scraper.fetch_videos(query)
+        try:
+            async with self.limits[platform], self.scraper(platform) as scraper:
+                result = await scraper.fetch_videos(query)
+        except Exception as exc:
+            # Search failures are returned as actionable tool results instead
+            # of escaping as an opaque MCP exception.
+            return failure(exc, platform)
         if result.videos:
             await query_cache.set_query(result)
         return {"status": "ok", "videos": [v.model_dump(mode="json") for v in result.videos], "cached": False}
@@ -135,6 +152,32 @@ class VideoService:
         async with self.scraper(platform) as scraper:
             rows = await scraper.fetch_followed_authors(limit)
         return {"status": "ok", "authors": [{"platform": platform, **row} for row in rows], "limit_reached": len(rows) == limit}
+
+    async def research_watchlist(self, name: str, max_per_creator: int | None = None,
+                                 refresh: bool = False) -> dict[str, Any]:
+        """Collect latest videos for a fixed creator list for later transcription."""
+        watchlist = self.watchlists.read(name)
+        if not watchlist.enabled:
+            return {"status": "ok", "watchlist": name, "enabled": False, "videos": [], "transcription_items": []}
+        limit = watchlist.max_videos_per_creator if max_per_creator is None else max_per_creator
+        if not 1 <= limit <= 50:
+            raise ValueError("max_per_creator must be 1-50")
+        grouped: dict[str, list[str]] = {}
+        for creator in watchlist.creators:
+            grouped.setdefault(creator.platform, []).append(creator.url)
+        results = []
+        for platform, authors in grouped.items():
+            results.append(await self.latest(platform, authors, limit, refresh))
+        videos = [video for result in results for video in result.get("videos", [])]
+        return {
+            "status": "ok" if all(result.get("status") == "ok" for result in results) else "partial",
+            "watchlist": name,
+            "analysis_skill": watchlist.analysis_skill,
+            "results": results,
+            "videos": videos,
+            "transcription_items": videos,
+            "next_step": "提交 transcription_items 到 batch_transcribe，然后用 analyze_videos 研究转录内容。",
+        }
 
     async def transcribe(self, raw: dict[str, Any]) -> dict[str, Any]:
         from transcribers import SubtitleParser, WhisperClient

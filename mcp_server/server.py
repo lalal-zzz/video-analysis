@@ -123,6 +123,19 @@ async def list_followed_authors(platform: str, limit: int = 200) -> dict[str, An
 
 
 @tool
+async def manage_creator_watchlist(action: str, name: str = "default", config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """List/read/create/update fixed creator watchlists used for repeated research."""
+    return current().watchlists.result(action, name, config)
+
+
+@tool
+async def research_creator_watchlist(name: str, max_per_creator: int | None = None,
+                                     refresh: bool = False) -> dict[str, Any]:
+    """Collect latest videos for a fixed creator watchlist; returns transcription_items for batch_transcribe."""
+    return await current().research_watchlist(name, max_per_creator, refresh)
+
+
+@tool
 async def batch_download(videos: list[dict[str, Any]], output_dir: str = "", max_concurrency: int = 3) -> dict[str, Any]:
     """Start a durable background download of 1-500 items (platform, url). Poll get_job; only verified nonempty media files succeed."""
     target = Path(output_dir).expanduser().resolve() if output_dir else current().paths.root / "videos"
@@ -138,6 +151,12 @@ async def batch_transcribe(videos: list[dict[str, Any]], session: str = "") -> d
     if session:
         identifier(session)
     return current().jobs.submit("transcribe", videos, current().transcribe, 2)
+
+
+@tool
+async def extract_video_frames(media_file: str, timestamps: list[float]) -> dict[str, Any]:
+    """Extract 1-20 JPG evidence frames at transcript timestamps from a downloaded media file."""
+    return current().extract_frames(media_file, timestamps)
 
 
 @tool
@@ -199,6 +218,9 @@ async def query_logs(limit: int = 50) -> dict[str, Any]:
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
+    # FastMCP may enable INFO globally; HTTP logs include signed media URLs.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     mcp.run(transport="stdio")
 
 

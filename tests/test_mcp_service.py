@@ -92,6 +92,14 @@ def test_id_cookie_does_not_count_as_authenticated():
     assert not BrowserAuth.has_session("douyin", [cookie("sid_guard", domain=".douyin.com")])
 
 
+@pytest.mark.parametrize("message", ["Bilibili API error -799: 请求过于频繁，请稍后再试", "请求频率限制"])
+def test_bilibili_frequency_limit_is_not_a_login_failure(message):
+    result = failure(RuntimeError(message), "bilibili")
+    assert result["status"] == "error"
+    assert result["code"] == "platform_restricted"
+    assert message not in result["message"]
+
+
 @pytest.mark.parametrize("url", ["file:///etc/passwd", "https://youtube.com.evil.com/v", "http://youtube.com/v", "https://user:pass@youtube.com/v", "https://127.0.0.1/v"])
 def test_download_url_validation(url):
     with pytest.raises(ValueError):
@@ -155,6 +163,31 @@ async def test_media_requires_real_file_and_reuses_cache(service, monkeypatch):
     monkeypatch.setattr(FakeYDL, "extract_info", lambda *args, **kwargs: None)
     failed = await service.media.download("youtube", url + "2", service.paths.root / "videos")
     assert failed["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_bilibili_direct_reuses_only_nonempty_local_media(service, monkeypatch):
+    calls = []
+
+    def direct(url, directory):
+        calls.append(url)
+        directory.mkdir(parents=True, exist_ok=True)
+        file = directory / "BVtest.mp4"
+        file.write_bytes(b"test media")
+        result = {"status": "ok", "platform": "bilibili", "url": url,
+                  "files": [str(file)], "cached": False, "fallback": "bilibili_direct"}
+        atomic_json(directory / "download.json", result)
+        return result
+
+    monkeypatch.setattr(service.media, "_bilibili_direct", direct)
+    url = "https://www.bilibili.com/video/BVtest"
+    output = service.paths.root / "videos"
+    first = await service.media.download("bilibili", url, output)
+    second = await service.media.download("bilibili", url, output)
+    assert second["cached"] and len(calls) == 1
+    Path(first["files"][0]).write_bytes(b"")
+    third = await service.media.download("bilibili", url, output)
+    assert third["status"] == "ok" and not third["cached"] and len(calls) == 2
 
 
 @pytest.mark.asyncio

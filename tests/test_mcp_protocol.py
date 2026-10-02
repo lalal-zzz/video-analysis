@@ -7,6 +7,20 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
+def test_stdio_entrypoint_suppresses_http_request_urls(monkeypatch):
+    import logging
+    from mcp_server import server
+
+    previous = {name: logging.getLogger(name).level for name in ("httpx", "httpcore")}
+    monkeypatch.setattr(server.mcp, "run", lambda **kwargs: None)
+    try:
+        server.main()
+        assert all(not logging.getLogger(name).isEnabledFor(logging.INFO) for name in previous)
+    finally:
+        for name, level in previous.items():
+            logging.getLogger(name).setLevel(level)
+
+
 @pytest.mark.asyncio
 async def test_stdio_discovery_calls_and_background_job(tmp_path):
     parameters = StdioServerParameters(command=sys.executable, args=["-m", "mcp_server.server"], cwd=str(tmp_path),
