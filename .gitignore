@@ -22,6 +22,11 @@ data/*
 logs/
 *.log
 
+# Legacy encoded archives may contain local files and cached account data.
+/new.txt
+/zip.txt
+/zip[0-9][0-9][0-9].txt
+
 # Editors and OS files
 .idea/
 .vscode/
