@@ -26,6 +26,20 @@
 | 作者 | 视频发布时间/阶段 | 原话摘要与时间戳 | 标的/期限/前提 | 转录及视频来源 |
 |---|---|---|---|---|
 
+### 逐位观点与此前判断
+
+对研究清单中的每位作者重复这一段；没有更新/转录失败也要保留其状态。
+
+#### {{creator_name}}
+
+- 本次视频与证据：{{video_publish_time_and_timestamped_links}}
+- 本次观点：{{paraphrased_view_target_horizon_reason}}
+- 操作倾向及前提：{{creator_action_conditions_and_invalidation}}
+- 上一期/最近3—5个已归档交易日：{{prior_views_with_dates_and_sources}}
+- 观点变化：{{continued_strengthened_weakened_reversed_or_unknown}}
+- 昨日验证及误差：{{prior_forecast_outcome_and_causal_limits}}
+- 证据状态：{{ok_no_update_failed_missing_history}}
+
 ## 从昨天到今天，观点改变在哪里
 
 | 来源组 | 昨日判断证据 | 今日新判断证据 | 改变发生时间 | 新信息、推理变化或无法解释 |
@@ -33,12 +47,24 @@
 
 {{independent_source_group_consensus_and_disagreement}}
 
+## 综合判断与操作参考
+
+本节为当前助手结合已核实行情和独立来源的综合判断，与博主原话分开。给出时效和前提，不承诺收益，也不自动交易。
+
+| 情景 | 触发条件与行情依据 | 关注方向与操作参考 | 仓位倾向 | 失效/止损条件 | 主要风险/有效期限 |
+|---|---|---|---|---|---|
+| 基准 | | | | | |
+| 走强 | | | | | |
+| 走弱 | | | | | |
+
+{{why_this_synthesis_follows_from_evidence_and_which_disagreements_remain}}
+
 ## 下一交易日观察条件
 
 | 判断ID/作者 | 原始判断 | 目标交易日 | 观察指标与规则 | 前提/失效条件 | 可自动验证吗 |
 |---|---|---|---|---|---|
 
-这是研究观察清单，避免把观点汇总写成个人买卖指令。
+综合情景的可检验条件另列为“助手综合判断”，不混进各博主的原始预测成绩。没有用户持仓与风险预算时不推断个人买卖数量。
 
 ## 覆盖与证据限制
 

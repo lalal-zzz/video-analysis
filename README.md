@@ -39,6 +39,10 @@ creator tracking, transcript summarization and evidence-based opinion comparison
 
 晨间定时示例：每天北京时间08:00调用Skill，复盘前一个已收盘交易日D，获取作者最近6期并筛选相关视频，用D的大盘验证再前一个交易日P的原始判断。周末和节假日沿用最近交易日；已处理记录不重复计分。执行日凌晨的新视频作为盘前补充单列，不混进昨日行情或昨日证据截止窗口。
 
+日报对研究清单中的每位作者分别给出本次观点、此前3—5个已归档交易日观点、变化原因、判断验证和证据状态；再汇总共识、分歧与基准/走强/走弱三种情景下的操作参考，写明触发条件、风险、失效条件与时效。首次历史不足时明确缺口，不补造。
+
+在用户授权每日公开发布后，使用`scripts/publish_daily_report.py --record <归档revision.json> --push`导出原创摘要，追加保存至`html/skills/daily/`，更新`github.html`日报索引，只提交日报、索引与页面并推送GitHub `origin/main`。个人资料、内部转录引用和全文转录不发布；已有用户暂存/页面改动或推送失败时停止并报告，不强推、不推送旧分支。没有新报告不创建空提交。
+
 `save_daily_research` 按日期追加保存JSON与Markdown版本，`get_daily_research` 读取历史记录，`evaluate_daily_forecasts` 冻结今日09:15集合竞价前已保存的上一交易日版本。只有明确定义、单位一致、期限匹配的判断进入自动判定；条件句、模糊判断和缺数据分别标记，不计为预测失败。历史记录晚于今日开盘才导入时不能当成事前成绩。工具不自动获取实时行情，也不自动创建定时任务。
 
 日报存放在 `Paths.root/daily-research/`，与state中的登录资料隔离。公开名单直接提供在`github.html`和`html/skills/`，不需要独立文档目录。维护脚本`scripts/export_creator_catalog.py`默认只刷新公开目录；显式授权读取关注列表后，完整快照仅保存在被Git忽略的`data/private-research/`，发布时过滤非财经账号、个人关注标记和登录资料。

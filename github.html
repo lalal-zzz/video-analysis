@@ -27,6 +27,7 @@
     <section id="creators"><div class="section-head"><div><div class="eyebrow">02 / 来源池</div><h2>从公开财经资料出发，<br>持续扩展不同视角。</h2></div><p>日分析按内容和证据选择。粉丝数、更新频率与原创关系分别核实；其他市场和待核实身份保留状态。</p></div><div class="split"><div class="panel"><h3>每日研究启动池</h3><ul class="list"><li><a href="https://space.bilibili.com/3546929266952873">擒龙先生 ↗</a><span>盘后 / 科技题材</span></li><li><a href="https://space.bilibili.com/21329863">量化技术分析 ↗</a><span>指数 / 技术走势</span></li><li><a href="https://space.bilibili.com/131580584">知先财情 ↗</a><span>宏观 / 晨间 / 跨市场</span></li><li><a href="https://space.bilibili.com/32222710">梦想超过余额宝 ↗</a><span>ETF份额 / 资金追踪</span></li><li><a href="https://space.bilibili.com/2137589551">李大霄 ↗</a><span>政策 / 市场观点</span></li><li><a href="https://space.bilibili.com/3690998787999908">主力行为学杨宁本人 ↗</a><span>交易信号 / 市场节奏</span></li></ul></div><div class="panel"><h3>持续发现 · 公开候选</h3><p>巴菲特的魔法师、海螺复盘、股帮、刘老师の炒股笔记、刺客论股、ETF基金波段王、比巴卜作手、小草论市等，均已收入总表。</p><p>公司研究、ETF、短线与宏观分层；同一讲者的大小号或转载不重复计作“共识”。候选主页与近期更新核实后，再加入固定监控。</p><a class="button secondary" href="html/skills/creator-catalog.md">打开公开作者与核实状态</a><p class="note">目录数量不代表所有作者均已转录；本页面不提供任何用户的关注关系。</p></div></div></section>
     <section id="catalog"><div class="section-head"><div><div class="eyebrow">来源目录 / 公开资料</div><h2>每个观点都有来源。</h2></div><p>搜索作者名称或内容方向。未核实身份和其他市场来源保留状态，公开目录不记录个人关注关系。</p></div><div class="catalog-controls"><input id="creator-search" type="search" aria-label="搜索博主或内容方向" placeholder="搜索：巴菲特、ETF、技术、宏观…"><select id="creator-filter" aria-label="筛选平台"><option value="all">全部平台</option><option value="bilibili">B站</option><option value="youtube">YouTube</option><option value="verified">主页已解析</option></select></div><p id="catalog-count" class="note" aria-live="polite">公开目录加载中；也可打开Markdown总表。</p><div class="catalog-scroll table-wrap"><table><thead><tr><th>名称 / 平台</th><th>内容方向</th><th>公开来源</th><th>身份 / 粉丝核对</th></tr></thead><tbody id="creator-rows"></tbody></table></div><noscript><p>浏览器禁用脚本时，请打开<a href="html/skills/creator-catalog.md">公开Markdown名单</a>。</p></noscript></section>
     <section id="comparison"><div class="section-head"><div><div class="eyebrow">03 / 可核对的日报</div><h2>让判断有明确的期限。</h2></div><p>每条判断对应实际指标、前提和时间。缺数据时留下缺口；条件不明确时保留人工核查，不强行计算命中率。</p></div><div class="example">以下是虚构的格式示例，不是博主原话、真实行情或历史预测成绩。</div><div class="table-wrap"><table><thead><tr><th>昨日判断</th><th>事前条件</th><th>今日实际（示例）</th><th>记录结果</th></tr></thead><tbody><tr><td>示例研究员 A：下个交易日沪指收涨</td><td>沪指收盘涨跌幅 &gt; 0%，单位 pct</td><td>+0.30%，附独立收盘来源</td><td><span class="badge">结果成立</span></td></tr><tr><td>示例研究员 B：科技或有机会</td><td>没有明确标的、阈值或期限</td><td>无法建立对应验证指标</td><td><span class="badge pending">不可自动判定</span></td></tr><tr><td>示例研究员 C：若放量，趋势可能延续</td><td>需先核对放量口径与触发条件</td><td>成交额数据尚未取得</td><td><span class="badge pending">证据缺失</span></td></tr></tbody></table></div></section>
+    <section id="daily"><div class="section-head"><div><div class="eyebrow">每日更新 / 真实研究归档</div><h2>每位作者的观点，<br>每次变化的依据。</h2></div><p>日报逐位列出观点与历史变化，再对照大盘验证，给出有触发条件和风险边界的综合操作参考。公开版本保留来源链接，原始转录和个人资料留在本地。</p></div><div class="panel"><p id="daily-empty">首份真实日报完成并发布后，将在这里展示。上方流程示例不计入真实研究档案。</p><ul id="daily-reports" class="list" aria-label="每日研究报告"></ul><p class="note">每天08:00的晨间任务分析上一交易日；休市无新材料时复用既有报告，不制造重复成绩。</p></div></section>
     <section id="start"><div class="section-head"><div><div class="eyebrow">04 / 开始使用</div><h2>让助手完成一次完整复盘。</h2></div><p>安装项目插件或连接本地MCP，加载每日分析Skill。报告和来源保存在本地数据目录，与登录资料隔离。</p></div><div class="code">使用 $a-share-daily-review 分析今天的 A 股。
 读取固定博主清单，核对当日大盘，逐条验证上一交易日的原始判断。
 比较博主从昨天到今天的观点变化，保存日报与下一交易日观察条件。
@@ -67,6 +68,25 @@
     count.textContent = '显示 ' + selected.length + ' / ' + creators.length + ' 个公开条目 · 来源核对 2026-10-13 · 目录不代表全部完成转录';
   }
   input.addEventListener('input', render); filter.addEventListener('change', render); render();
+})();
+</script>
+<script id="daily-data" type="application/json">[]</script>
+<script>
+(() => {
+  const reports = JSON.parse(document.getElementById('daily-data').textContent);
+  const list = document.getElementById('daily-reports');
+  const empty = document.getElementById('daily-empty');
+  const seen = new Set();
+  for (const report of reports) {
+    if (seen.has(report.trading_date)) continue;
+    if (!/^html\/skills\/daily\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{32}\.md$/.test(report.path)) continue;
+    seen.add(report.trading_date);
+    const item = document.createElement('li');
+    const link = document.createElement('a'); link.href = report.path; link.textContent = report.trading_date + ' · 观点、验证与操作参考 ↗';
+    const meta = document.createElement('span'); meta.textContent = report.creators + ' 位作者 · ' + report.transcripts + ' 份转录';
+    item.append(link, meta); list.append(item);
+  }
+  empty.hidden = seen.size > 0;
 })();
 </script>
 </body>

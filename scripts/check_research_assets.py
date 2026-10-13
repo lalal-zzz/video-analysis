@@ -28,6 +28,10 @@ def main():
     assert len(embedded) == len(catalog["creators"])
     assert "following_count" not in catalog
     assert all("origins" not in row and row["category"] != "非财经或待核实" for row in embedded)
+    reports = json.loads((ROOT / "html/skills/daily/index.json").read_text(encoding="utf-8"))["reports"]
+    daily_embedded = json.loads(re.search(r'<script id="daily-data" type="application/json">(.*?)</script>', html, re.S)[1])
+    assert daily_embedded == reports
+    assert all((ROOT / report["path"]).is_file() for report in reports)
     watchlist = json.loads((ROOT / "skills/a-share-daily-review/references/default-watchlist.json").read_text(encoding="utf-8"))
     CreatorWatchlist.model_validate({"name": "a-share-daily", **watchlist})
     from playwright.sync_api import sync_playwright
@@ -48,6 +52,7 @@ def main():
         assert page.locator("#creator-rows tr").count() == sum(row["platform"] == "bilibili" for row in embedded)
         page.locator("#creator-filter").select_option("all")
         assert not errors, errors
+        assert page.locator("#daily-reports li").count() == len({report["trading_date"] for report in reports})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
         output = Path(tempfile.mkdtemp(prefix="video-analysis-showcase-"))
         page.screenshot(path=str(output / "desktop.png"), full_page=True)
