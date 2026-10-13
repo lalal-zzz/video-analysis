@@ -27,6 +27,22 @@ creator tracking, transcript summarization and evidence-based opinion comparison
 视频内容和机构转述属于待分析的证据；研究报告会标注转录错误、采集缺口和未独立核验的说法。
 股票财经分析用于理解视频观点，不会把博主预测直接当作投资建议。
 
+## A股每日研究与项目展示
+
+新增 [`a-share-daily-review` Skill](skills/a-share-daily-review/SKILL.md)：采集财经博主视频、读取转录、独立核对当日大盘，并对照上一交易日保存的原始判断，形成“昨日判断 → 今日结果 → 观点变化 → 下一交易日观察条件”的日报。
+
+- [公开财经博主来源总表](html/skills/creator-catalog.md)：提供通用作者主页、视频证据和核实状态，不提供个人关注关系；目录不等于全部已转录或验证。
+- [静态项目介绍 github.html](github.html)：对外说明研究流程和日报样式，不是旧Web UI，也不提供登录、交易或服务器控制。
+- [日报模板](skills/a-share-daily-review/assets/daily-report.md)与[数据/判定口径](skills/a-share-daily-review/references/evidence-and-scoring.md)。
+
+调用示例：`使用 $a-share-daily-review 做今天的A股复盘，核对大盘，验证上一交易日的判断，保存日报和下一交易日观察条件。`
+
+晨间定时示例：每天北京时间08:00调用Skill，复盘前一个已收盘交易日D，获取作者最近6期并筛选相关视频，用D的大盘验证再前一个交易日P的原始判断。周末和节假日沿用最近交易日；已处理记录不重复计分。执行日凌晨的新视频作为盘前补充单列，不混进昨日行情或昨日证据截止窗口。
+
+`save_daily_research` 按日期追加保存JSON与Markdown版本，`get_daily_research` 读取历史记录，`evaluate_daily_forecasts` 冻结今日09:15集合竞价前已保存的上一交易日版本。只有明确定义、单位一致、期限匹配的判断进入自动判定；条件句、模糊判断和缺数据分别标记，不计为预测失败。历史记录晚于今日开盘才导入时不能当成事前成绩。工具不自动获取实时行情，也不自动创建定时任务。
+
+日报存放在 `Paths.root/daily-research/`，与state中的登录资料隔离。公开名单直接提供在`github.html`和`html/skills/`，不需要独立文档目录。维护脚本`scripts/export_creator_catalog.py`默认只刷新公开目录；显式授权读取关注列表后，完整快照仅保存在被Git忽略的`data/private-research/`，发布时过滤非财经账号、个人关注标记和登录资料。
+
 ## 核心能力
 
 | 能力 | Bilibili | YouTube | 抖音 |

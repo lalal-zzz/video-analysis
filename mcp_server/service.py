@@ -25,6 +25,7 @@ from mcp_server.jobs import Jobs
 from mcp_server.media import MediaDownloader, QuietLogger, validate_url
 from mcp_server.frames import FrameExtractor
 from mcp_server.research import CreatorWatchlistStore
+from mcp_server.daily import DailyResearchStore
 from mcp_server.storage import Paths, atomic_json, atomic_text, batch_result, failure, identifier, platform_name, within
 
 
@@ -36,6 +37,7 @@ class VideoService:
         self.media = MediaDownloader(self.cookies, session_refresh=self.auth.refresh_for_download)
         self.data = DataManager(self.paths.root)
         self.watchlists = CreatorWatchlistStore(self.paths)
+        self.daily = DailyResearchStore(self.paths)
         self.frames = FrameExtractor(self.paths.root, self.paths.artifacts)
         self.cache = DiskCache(Settings(cache=CacheConfig(storage_dir=str(self.paths.root / "cache"), query_ttl_hours=1)))
         self.jobs = Jobs(self.paths.root / "jobs")

@@ -34,5 +34,24 @@ copies already downloaded by other users or all hosting-provider caches.
 Local recovery backups are retained outside the repository and are not pushed.
 Any credential discovered to have been exposed should be revoked separately.
 
+## Creator catalog and branch check (2026-10-13)
+
+The current public catalog under `html/skills/` and embedded in `github.html`
+contains financial creators' public profiles and video metadata only. It does
+not retain the user's following relationships or non-financial interests.
+The original personal snapshot is kept in ignored local storage, not staged.
+The export helper uses a field allowlist and does not query follows by default.
+
+Read-only branch-head checks confirmed GitHub has `main`; GitCode has `dev`
+and `master`. The histories reachable from those advertised heads contain
+neither personal author emails nor the legacy encoded archive/cache paths
+checked here. This is a scoped check, not a blanket guarantee about secrets.
+
+Local `dev` still reaches old commits with a personal author email, encoded
+archives and compiled caches; local `master` still reaches encoded archives.
+These local branches differ from the sanitized remote histories. Do not push
+them with `--all` or merge their old history into the public branch. No remote
+history was rewritten or old local branch deleted during this check.
+
 Check repository visibility and remote branch heads after pushing. Avoid
 reintroducing old commits or encoded archives from an earlier clone.

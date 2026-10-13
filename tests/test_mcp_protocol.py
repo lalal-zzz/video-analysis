@@ -30,10 +30,25 @@ async def test_stdio_discovery_calls_and_background_job(tmp_path):
             await session.initialize()
             tools = await session.list_tools()
             names = {t.name for t in tools.tools}
-            assert {"batch_download", "get_job", "read_artifact", "manage_domain", "wait_for_platform_login"} <= names
+            assert {"batch_download", "get_job", "read_artifact", "manage_domain", "wait_for_platform_login",
+                    "save_daily_research", "get_daily_research", "evaluate_daily_forecasts"} <= names
             result = await session.call_tool("get_system_status", {})
             assert not result.isError
             assert result.structuredContent["status"] == "ok"
+            journal = await session.call_tool("get_daily_research", {})
+            assert journal.structuredContent == {"status": "ok", "trading_dates": []}
+            saved = await session.call_tool("save_daily_research", {"record": {
+                "trading_date": "2025-01-06", "cutoff_at": "2025-01-06T20:00:00+08:00",
+                "market": {"trading_date": "2025-01-06", "is_trading_day": True, "stage": "close",
+                           "calendar_source_url": "https://www.sse.com.cn/", "metrics": {}},
+                "report": "Simulated protocol test: no transcripts, market evidence unavailable", "gaps": ["No market data"]}})
+            assert saved.structuredContent["status"] == "ok"
+            read_back = await session.call_tool("get_daily_research", {"trading_date": "2025-01-06", "revision": saved.structuredContent["revision"]})
+            assert read_back.structuredContent["record"]["gaps"] == ["No market data"]
+            scored = await session.call_tool("evaluate_daily_forecasts", {"previous_trading_date": "2025-01-06", "market": {
+                "trading_date": "2025-01-07", "is_trading_day": True, "stage": "close",
+                "previous_trading_date": "2025-01-06", "calendar_source_url": "https://www.sse.com.cn/", "metrics": {}}})
+            assert scored.structuredContent["baseline_status"] == "late_record"
             batch = await session.call_tool("batch_download", {"videos": [{"platform": "youtube", "url": "file:///forbidden"}, {"platform": "unsupported", "url": "https://example.com"}]})
             assert batch.structuredContent["status"] == "running"
             result = await session.call_tool("get_job", {"job_id": batch.structuredContent["job_id"], "wait_seconds": 10})

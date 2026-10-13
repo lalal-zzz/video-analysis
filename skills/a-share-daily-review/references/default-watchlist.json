@@ -1,0 +1,22 @@
+{
+  "description": "A股每日研究启动池；通用公开财经作者，不记录用户关注关系。更多候选见html/skills/creator-catalog.md。",
+  "enabled": true,
+  "analysis_skill": "a-share-daily-review",
+  "max_videos_per_creator": 2,
+  "creators": [
+    {"name": "擒龙先生", "platform": "bilibili", "url": "https://space.bilibili.com/3546929266952873", "author_id": "3546929266952873", "tags": ["A股", "题材", "盘后"]},
+    {"name": "量化技术分析", "platform": "bilibili", "url": "https://space.bilibili.com/21329863", "author_id": "21329863", "tags": ["A股", "指数", "技术"]},
+    {"name": "知先财情", "platform": "bilibili", "url": "https://space.bilibili.com/131580584", "author_id": "131580584", "tags": ["A股", "宏观", "晨间"]},
+    {"name": "梦想超过余额宝", "platform": "bilibili", "url": "https://space.bilibili.com/32222710", "author_id": "32222710", "tags": ["A股", "ETF", "资金"]},
+    {"name": "李大霄", "platform": "bilibili", "url": "https://space.bilibili.com/2137589551", "author_id": "2137589551", "tags": ["A股", "政策"]},
+    {"name": "主力行为学杨宁本人", "platform": "bilibili", "url": "https://space.bilibili.com/3690998787999908", "author_id": "3690998787999908", "tags": ["A股", "技术"]},
+    {"name": "海螺复盘", "platform": "bilibili", "url": "https://space.bilibili.com/471949556", "author_id": "471949556", "tags": ["A股", "ETF", "可转债"], "notes": "主页来自公开合集ID证据；运行前核对当前身份与更新"},
+    {"name": "ETF基金波段王", "platform": "bilibili", "url": "https://space.bilibili.com/518495360", "author_id": "518495360", "tags": ["A股", "ETF"], "notes": "主页来自公开合集ID证据；运行前核对当前身份与更新"},
+    {"name": "巴菲特的魔法师", "platform": "bilibili", "url": "https://space.bilibili.com/346425855", "author_id": "346425855", "tags": ["A股", "盘前", "题材"], "notes": "2026-10-13经平台检索解析主页并取得最近视频"},
+    {"name": "股帮", "platform": "bilibili", "url": "https://space.bilibili.com/2064644818", "author_id": "2064644818", "tags": ["A股", "市场消息", "收评"]},
+    {"name": "作手峰途", "platform": "bilibili", "url": "https://space.bilibili.com/544461242", "author_id": "544461242", "tags": ["A股", "短线", "题材"]},
+    {"name": "刘老师の炒股笔记", "platform": "bilibili", "url": "https://space.bilibili.com/1012973022", "author_id": "1012973022", "tags": ["A股", "收评"], "notes": "刺客论股可能同源，不重复计算独立共识"},
+    {"name": "每天解读一家上市公司", "platform": "bilibili", "url": "https://space.bilibili.com/3546669505317088", "author_id": "3546669505317088", "tags": ["A股", "基本面", "公司"]},
+    {"name": "有信心BB", "platform": "bilibili", "url": "https://space.bilibili.com/429633539", "author_id": "429633539", "tags": ["A股", "财报", "公司"]}
+  ]
+}

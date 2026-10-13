@@ -178,6 +178,24 @@ async def save_analysis(content: str, artifacts: list[str], user_query: str = ""
 
 
 @tool
+async def save_daily_research(record: dict[str, Any]) -> dict[str, Any]:
+    """Save dated market evidence, transcript-backed forecasts and a daily report as a new immutable revision. No automatic market fetch or scheduling."""
+    return current().daily.save(record)
+
+
+@tool
+async def get_daily_research(trading_date: str = "", revision: str = "latest", limit: int = 30) -> dict[str, Any]:
+    """Read a dated daily record/revision, or list recorded trading dates when date is omitted."""
+    return current().daily.read(trading_date, revision) if trading_date else current().daily.list(limit)
+
+
+@tool
+async def evaluate_daily_forecasts(previous_trading_date: str, market: dict[str, Any]) -> dict[str, Any]:
+    """Compare the baseline saved before today's 09:15 auction with sourced closing metrics. Holidays, late records, vague/conditional forecasts and missing metrics are never counted as misses."""
+    return current().daily.evaluate(previous_trading_date, market)
+
+
+@tool
 async def manage_subscriptions(action: str, domain: str = "default", items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """List/replace local subscriptions; each item contains author={name,platform,url}. Replace requires explicit items; [] clears."""
     return await current().subscriptions(action, domain, items)
