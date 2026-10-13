@@ -10,7 +10,7 @@
 
    `.venv/Scripts/python.exe scripts/publish_daily_report.py --record <已保存revision.json的绝对路径> --push`
 
-   脚本在`html/skills/daily/YYYY-MM-DD/<revision>.md`保留版本，更新`html/skills/daily/index.json`和`github.html`的日报链接。网页只展示真实已发布报告；第一天索引为空。
+   脚本在`html/skills/daily/YYYY-MM-DD/<revision>.md`保留版本，更新`html/skills/daily/index.json`和`github.html`的日报链接与历史分析日历。日历按被分析的交易日标记，点击日期可查看当天所有修订版本；次日早晨发布的复盘归入被分析日。网页只展示真实已发布报告；第一天索引为空，不补造旧报告。
 4. 脚本只允许当前分支main、配置的GitHub origin；只提交本次日报、日报索引和github.html。遇到已有用户暂存文件、其他网页改动或远端拒绝，停止提交/推送并报告，不清空用户暂存区，不force-push，不自动改写历史。GitCode及旧dev/master不推送。
 5. 结果分别报告本地导出、commit、push。推送失败时报告本地commit和错误状态，不能写“已上传”。下一次可在核实当前main和远端状态后正常重试，不为凑每日提交制造重复报告。
 

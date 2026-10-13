@@ -43,6 +43,8 @@ creator tracking, transcript summarization and evidence-based opinion comparison
 
 在用户授权每日公开发布后，使用`scripts/publish_daily_report.py --record <归档revision.json> --push`导出原创摘要，追加保存至`html/skills/daily/`，更新`github.html`日报索引，只提交日报、索引与页面并推送GitHub `origin/main`。个人资料、内部转录引用和全文转录不发布；已有用户暂存/页面改动或推送失败时停止并报告，不强推、不推送旧分支。没有新报告不创建空提交。
 
+`github.html`的历史分析日历按被分析的交易日标记已发布日报，点击日期可打开当天全文及各次修订。支持切换月份、本月和最新分析，并保留全部日期的历史链接；每日发布更新索引后，日历自动显示新记录。尚未发布的历史日期不补造报告。
+
 `save_daily_research` 按日期追加保存JSON与Markdown版本，`get_daily_research` 读取历史记录，`evaluate_daily_forecasts` 冻结今日09:15集合竞价前已保存的上一交易日版本。只有明确定义、单位一致、期限匹配的判断进入自动判定；条件句、模糊判断和缺数据分别标记，不计为预测失败。历史记录晚于今日开盘才导入时不能当成事前成绩。工具不自动获取实时行情，也不自动创建定时任务。
 
 日报存放在 `Paths.root/daily-research/`，与state中的登录资料隔离。公开名单直接提供在`github.html`和`html/skills/`，不需要独立文档目录。维护脚本`scripts/export_creator_catalog.py`默认只刷新公开目录；显式授权读取关注列表后，完整快照仅保存在被Git忽略的`data/private-research/`，发布时过滤非财经账号、个人关注标记和登录资料。
