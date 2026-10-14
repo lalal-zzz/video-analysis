@@ -1,0 +1,51 @@
+name: Publish research website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - github.html
+      - html/skills/**
+      - skills/a-share-daily-review/**
+      - skills/video-analysis/**
+      - README.md
+      - scripts/build_public_site.py
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/configure-pages@v5
+      - name: Install static renderer
+        run: python -m pip install Markdown==3.9
+      - name: Build public assets
+        run: python scripts/build_public_site.py --output _site
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
