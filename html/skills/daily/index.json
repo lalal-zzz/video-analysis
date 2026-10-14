@@ -1,3 +1,13 @@
 {
-  "reports": []
+  "reports": [
+    {
+      "trading_date": "2026-10-13",
+      "revision": "1feb9bf277304920912a730db5718d6e",
+      "path": "html/skills/daily/2026-10-13/1feb9bf277304920912a730db5718d6e.md",
+      "saved_at": "2026-10-14T00:18:27.719111+00:00",
+      "creators": 14,
+      "transcripts": 41,
+      "stage": "close"
+    }
+  ]
 }
