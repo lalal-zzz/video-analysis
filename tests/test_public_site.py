@@ -42,6 +42,16 @@ def test_only_public_indexed_assets_are_published(tmp_path):
     assert 'href="README.html"' in home
     assert "report.path.replace(/\\.md$/, '.html')" in home
     assert 'href="skills/a-share-daily-review/SKILL.html"' in (output / "README.html").read_text(encoding="utf-8")
+    assert 'name="description"' in page
+    assert 'rel="canonical"' in page
+    assert "2026-10-13 A股复盘" in page
+    assert 'application/ld+json' in page
+    sitemap = (output / "sitemap.xml").read_text(encoding="utf-8")
+    assert "PRIVATE_SENTINEL" not in sitemap
+    assert "unindexed" not in sitemap
+    assert "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.html" in sitemap
+    assert "github.html" not in sitemap
+    assert "sitemap.xml" in (output / "robots.txt").read_text(encoding="utf-8")
 
 
 def test_refuses_existing_output_or_repository_root(tmp_path):

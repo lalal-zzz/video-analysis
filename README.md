@@ -31,6 +31,8 @@ creator tracking, transcript summarization and evidence-based opinion comparison
 
 在线研究首页：[https://lalal-zzz.github.io/video-analysis/](https://lalal-zzz.github.io/video-analysis/)。GitHub Pages通过`.github/workflows/pages.yml`发布，日报推送后自动更新日历，并将公开Markdown报告渲染为可阅读网页。构建仅导出明确列出的公开资料，不包含本地运行数据或转录。
 
+搜索入口围绕“A股每日复盘、财经博主观点、B站股票博主、视频分析”等真实内容设置标题、描述、规范网址与结构化数据。构建自动生成`sitemap.xml`，历史日报链接直接出现在页面源码中，便于无需脚本的抓取。项目子路径的`robots.txt`不替代域名根目录规则；抓取是否允许还受站点根规则控制。搜索引擎收录与排名由其决定，关键词标签本身不保证被搜到。
+
 新增 [`a-share-daily-review` Skill](skills/a-share-daily-review/SKILL.md)：采集财经博主视频、读取转录、独立核对当日大盘，并对照上一交易日保存的原始判断，形成“昨日判断 → 今日结果 → 观点变化 → 下一交易日观察条件”的日报。
 
 - [公开财经博主来源总表](html/skills/creator-catalog.md)：提供通用作者主页、视频证据和核实状态，不提供个人关注关系；目录不等于全部已转录或验证。
