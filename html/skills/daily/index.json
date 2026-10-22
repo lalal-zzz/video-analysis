@@ -1,6 +1,15 @@
 {
   "reports": [
     {
+      "trading_date": "2026-10-21",
+      "revision": "070f926954d64de6af5b8e783aa6ae13",
+      "path": "html/skills/daily/2026-10-21/070f926954d64de6af5b8e783aa6ae13.md",
+      "saved_at": "2026-10-22T00:12:45.246111+00:00",
+      "creators": 14,
+      "transcripts": 27,
+      "stage": "close"
+    },
+    {
       "trading_date": "2026-10-20",
       "revision": "9ce83d02b4654b1181e3dc9c5d4502dd",
       "path": "html/skills/daily/2026-10-20/9ce83d02b4654b1181e3dc9c5d4502dd.md",
